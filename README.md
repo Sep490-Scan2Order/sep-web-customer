@@ -1,36 +1,71 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# S2O - Scan2Order
 
-## Getting Started
+Nền tảng đặt món tại nhà hàng với công nghệ quét mã QR. Scan. Order. Enjoy.
 
-First, run the development server:
+## Chạy dự án
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
+# hoặc
 pnpm dev
-# or
+# hoặc
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Mở [http://localhost:3000](http://localhost:3000) trên trình duyệt.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Kiến trúc tổng quan
 
-## Learn More
+### Các folder chính
 
-To learn more about Next.js, take a look at the following resources:
+| Folder | Vai trò |
+|--------|---------|
+| **app/** | Chứa **pages** (controller) — nhận request, xử lý logic, gọi service. Có cả **api/** để trả data (mock hoặc proxy backend). |
+| **services/** | Gọi API qua axios — **duy nhất** nơi gọi API. Trả data về cho page. |
+| **views/** | Giao diện trang — nhận data từ page qua props, chỉ lo render HTML. |
+| **components/** | UI nhỏ tái sử dụng (button, card...) — dùng trong views. |
+| **layouts/** | Khung chung (header, footer) — bao quanh nội dung trang. |
+| **lib/** | Code dùng chung — constants, utils, mock data. |
+| **types/** | Định nghĩa TypeScript — interfaces dùng chung. |
+| **routes/** | Định nghĩa path (URL) — tránh hardcode. |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Quy trình từ người dùng truy cập đến hiển thị
 
-## Deploy on Vercel
+**Ví dụ:** Người dùng vào `/restaurant/1` để xem chi tiết nhà hàng.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+1. Người dùng truy cập URL
+   → /restaurant/1
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. app/restaurant/[id]/page.tsx (Controller)
+   → Nhận params (id = "1")
+   → Gọi service: getRestaurantById("1")
+
+3. services/restaurantService.ts gọi API qua axios
+   → Gửi request: GET /api/restaurants/1
+
+4. app/api/restaurants/[id]/route.ts (API) nhận request
+   → Lấy data (mock hoặc từ backend thật)
+   → Trả JSON lại cho service (service nhận được data)
+
+5. Page nhận data từ service
+   → Kiểm tra: có data không? Không → notFound()
+   → Có → Truyền xuống View: <RestaurantDetailView restaurant={data} />
+
+6. views/RestaurantDetail (View)
+   → Nhận props restaurant
+   → Render HTML với components (layout, card, v.v.)
+   → Trả về giao diện cho người dùng
+```
+
+**Tóm lại:** User → **app** (controller) → **services** (lấy data) → **API** → data về → **views** (hiển thị).
+
+---
+
+## Deploy
+
+Có thể deploy lên [Vercel](https://vercel.com/new) hoặc host tương thích Next.js.

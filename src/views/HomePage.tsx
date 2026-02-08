@@ -1,8 +1,12 @@
 import { HeroSection } from "@/components/HeroSection";
 import { RestaurantCard } from "@/components/RestaurantCard";
-import { mockRestaurants } from "@/lib/mockData";
+import type { Restaurant } from "@/types";
 
-export function HomePage() {
+interface HomePageProps {
+  restaurants: Restaurant[];
+}
+
+export function HomePage({ restaurants }: HomePageProps) {
   return (
     <>
       <HeroSection />
@@ -12,7 +16,7 @@ export function HomePage() {
           Nhà hàng nổi bật
         </h2>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {mockRestaurants.map((restaurant) => (
+          {restaurants.map((restaurant) => (
             <RestaurantCard key={restaurant.id} restaurant={restaurant} />
           ))}
         </div>

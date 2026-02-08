@@ -1,29 +1,23 @@
 import { notFound } from "next/navigation";
-import { mockRestaurants } from "@/lib/mockData";
-import { MainLayout } from "@/layouts";
+import { getRestaurantById } from "@/services";
+import RestaurantDetailView from "@/views/RestaurantDetail";
 
 interface RestaurantPageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function RestaurantPage({ params }: RestaurantPageProps) {
+  // 1. Xử lý Logic lấy tham số (Controller)
   const { id } = await params;
-  const restaurant = mockRestaurants.find((r) => r.id === id);
 
+  // 2. Xử lý Logic lấy dữ liệu (Service - gọi API qua axios)
+  const restaurant = await getRestaurantById(id);
+
+  // 3. Xử lý logic điều hướng
   if (!restaurant) {
     notFound();
   }
 
-  return (
-    <MainLayout>
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        <h1 className="text-2xl font-bold">{restaurant.name}</h1>
-        <p className="text-slate-600">
-          Cuisine: {restaurant.cuisineType} | Rating: {restaurant.rating} |
-          Distance: {restaurant.distance}
-        </p>
-        {/* TODO: Add full restaurant detail UI */}
-      </div>
-    </MainLayout>
-  );
+  // 4. Trả về View (Presentation)
+  return <RestaurantDetailView restaurant={restaurant} />;
 }
