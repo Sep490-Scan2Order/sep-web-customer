@@ -10,7 +10,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
   // 1. Xử lý Logic lấy tham số (Controller)
   const { id } = await params;
 
-  // 2. Xử lý Logic lấy dữ liệu (Service - gọi API qua axios)
+  // 2. Xử lý Logic lấy dữ liệu (Service)
   const restaurant = await getRestaurantById(id);
 
   // 3. Xử lý logic điều hướng

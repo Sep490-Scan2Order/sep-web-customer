@@ -1,23 +1,18 @@
-import { api } from "@/axios";
+import { mockRestaurants } from "@/lib/mockData";
 import type { Restaurant } from "@/types";
 
 /**
  * Lấy danh sách tất cả nhà hàng
+ * Khi có Backend .NET: thay bằng api.get("/restaurants") và đổi NEXT_PUBLIC_API_URL trong .env
  */
 export async function getRestaurants(): Promise<Restaurant[]> {
-  const { data } = await api.get<Restaurant[]>("/restaurants");
-  return data;
+  return mockRestaurants;
 }
 
 /**
  * Lấy chi tiết nhà hàng theo ID
- * @returns Restaurant hoặc null nếu không tìm thấy
+ * Khi có Backend .NET: thay bằng api.get(`/restaurants/${id}`) và đổi NEXT_PUBLIC_API_URL trong .env
  */
 export async function getRestaurantById(id: string): Promise<Restaurant | null> {
-  try {
-    const { data } = await api.get<Restaurant>(`/restaurants/${id}`);
-    return data;
-  } catch {
-    return null;
-  }
+  return mockRestaurants.find((r) => r.id === id) ?? null;
 }
