@@ -1,48 +1,41 @@
 "use client";
 
 import Link from "next/link";
-import { UtensilsCrossed, LogIn, Home, History, User } from "lucide-react";
+import Image from "next/image";
+import { LogIn } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
 import { ROUTES } from "@/routes";
-
-const navLinks = [
-  { href: ROUTES.HOME, label: "Home", icon: Home },
-  { href: ROUTES.HISTORY, label: "History", icon: History },
-  { href: ROUTES.PROFILE, label: "Profile", icon: User },
-];
+import logoDefault from "@/assets/images/logo/logo_removebg.png";
 
 export function Header() {
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-emerald-800/60 bg-emerald-700/95 text-white backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
           href={ROUTES.HOME}
-          className="flex items-center gap-2 font-bold text-emerald-600 transition-colors hover:text-emerald-700"
+          className="flex items-center gap-2 font-bold text-emerald-50 transition-colors hover:text-white"
         >
-          <UtensilsCrossed className="h-7 w-7" />
-          <span className="text-xl">{APP_NAME}</span>
+          <div className="flex items-center overflow-visible">
+            <Image
+              src={logoDefault}
+              alt={APP_NAME}
+              width={220}
+              height={96}
+              className="h-14 w-auto origin-left scale-125 object-contain sm:h-16 sm:scale-150 lg:h-20"
+              priority
+            />
+          </div>
         </Link>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          {navLinks.map(({ href, label, icon: Icon }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            >
-              <Icon className="h-4 w-4" />
-              {label}
-            </Link>
-          ))}
-        </nav>
-
-        <Link
-          href={ROUTES.LOGIN}
-          className="flex items-center gap-2 rounded-full bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
-        >
-          <LogIn className="h-4 w-4" />
-          Login
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href={ROUTES.LOGIN}
+            className="flex items-center gap-2 rounded-full border border-emerald-100/60 bg-emerald-600/40 px-4 py-2 text-sm font-semibold text-emerald-50 shadow-sm transition-colors hover:bg-emerald-500"
+          >
+            <LogIn className="h-4 w-4" />
+            Đăng nhập
+          </Link>
+        </div>
       </div>
     </header>
   );

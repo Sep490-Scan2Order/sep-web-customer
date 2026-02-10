@@ -13,13 +13,12 @@ export function HeroSection() {
   };
 
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-800 px-4 py-16 sm:py-24">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.1)_0%,transparent_50%)]" />
+    <section className="relative overflow-hidden bg-[#F6F3EC] px-4 py-16 sm:py-24">
       <div className="relative mx-auto max-w-4xl text-center">
-        <h1 className="mb-4 text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+        <h1 className="mb-4 text-4xl font-bold tracking-tight text-emerald-900 sm:text-5xl lg:text-6xl">
           Scan. Order. Enjoy.
         </h1>
-        <p className="mb-10 text-lg text-emerald-100 sm:text-xl">
+        <p className="mb-10 text-lg text-slate-900 sm:text-xl">
           Tìm nhà hàng yêu thích và đặt món chỉ với một cú quét
         </p>
 
