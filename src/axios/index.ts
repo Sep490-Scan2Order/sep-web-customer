@@ -25,10 +25,15 @@ export const api = axios.create({
   },
 });
 
-// Request interceptor
+// Request interceptor: gửi kèm Authorization: Bearer <accessToken>
 api.interceptors.request.use(
   (config) => {
-    // Add auth token if available
+    if (typeof window !== "undefined") {
+      const token = window.localStorage.getItem("s2o_access_token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    }
     return config;
   },
   (error) => Promise.reject(error)

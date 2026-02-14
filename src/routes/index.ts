@@ -7,6 +7,6 @@ export const ROUTES = {
   PROFILE: "/profile",
   LOGIN: "/login",
   SIGNUP: "/register",
-  VERIFY_OTP: "/verify-otp",
+  VOUCHER: "/voucher",
   RESTAURANT: (id: string) => `/restaurant/${id}`,
 } as const;
