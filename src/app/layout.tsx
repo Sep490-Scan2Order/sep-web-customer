@@ -13,8 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "S2O - Scan2Order | Tìm nhà hàng, đặt món dễ dàng",
+  title: "Scan2Order",
   description: "Nền tảng đặt món tại nhà hàng với công nghệ quét mã QR. Scan. Order. Enjoy.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({
@@ -23,9 +26,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
+    <html lang="vi" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-slate-50 antialiased`}
+        suppressHydrationWarning
       >
         {children}
       </body>

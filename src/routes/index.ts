@@ -8,5 +8,6 @@ export const ROUTES = {
   LOGIN: "/login",
   SIGNUP: "/register",
   VOUCHER: "/voucher",
+  MY_VOUCHERS: "/my-vouchers",
   RESTAURANT: (id: string) => `/restaurant/${id}`,
 } as const;

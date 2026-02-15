@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Menu, User, Gift, LogIn, LogOut } from "lucide-react";
+import { Menu, User, Gift, Ticket, LogIn, LogOut } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
 import { ROUTES } from "@/routes";
 import { getAccessToken, clearTokens } from "@/services";
@@ -13,6 +13,7 @@ import logoDefault from "@/assets/images/logo/logo_removebg.png";
 const menuItems = [
   { href: ROUTES.PROFILE, label: "Thông tin cá nhân", icon: User },
   { href: ROUTES.VOUCHER, label: "Điểm voucher", icon: Gift },
+  { href: ROUTES.MY_VOUCHERS, label: "Voucher của tôi", icon: Ticket },
 ];
 
 export function Header() {
