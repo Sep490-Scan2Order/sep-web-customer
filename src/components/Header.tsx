@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { Menu, User, Gift, Ticket, LogIn, LogOut } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
 import { ROUTES } from "@/routes";
-import { getAccessToken, clearTokens } from "@/services";
+import { getAccessToken, logout } from "@/services";
 import logoDefault from "@/assets/images/logo/logo_removebg.png";
 
 const menuItems = [
@@ -26,11 +26,11 @@ export function Header() {
     setIsLoggedIn(!!getAccessToken());
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setOpen(false);
-    clearTokens();
+    await logout();
     setIsLoggedIn(false);
-    router.push(ROUTES.HOME);
+    router.push(ROUTES.LOGIN);
   };
 
   useEffect(() => {

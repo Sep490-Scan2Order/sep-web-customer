@@ -13,10 +13,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Scan2Order",
+  title: "Scan To Order",
   description: "Nền tảng đặt món tại nhà hàng với công nghệ quét mã QR. Scan. Order. Enjoy.",
   icons: {
-    icon: "/favicon.png",
+    icon: "/favicon.ico",
   },
 };
 

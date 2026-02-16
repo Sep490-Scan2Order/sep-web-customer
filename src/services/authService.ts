@@ -44,10 +44,25 @@ export function getAccessToken(): string | null {
 }
 
 /**
- * Xóa token (đăng xuất)
+ * Xóa token khỏi localStorage (dùng trong logout)
  */
 export function clearTokens(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
+/**
+ * Đăng xuất: gọi POST /api/Auth/logout với Bearer token.
+ * Dù API trả 200 hay lỗi (401, 500, mạng…), luôn xóa accessToken và refreshToken.
+ * Caller cần redirect về /login sau khi gọi.
+ */
+export async function logout(): Promise<void> {
+  try {
+    await api.post("api/Auth/logout");
+  } catch {
+    // Bỏ qua mọi lỗi – luôn xóa token và để caller redirect
+  } finally {
+    clearTokens();
+  }
 }
