@@ -1,31 +1,22 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Gift, Ticket } from "lucide-react";
 import { ROUTES } from "@/routes";
+import { getAllVouchers, getMyPoint, type VoucherResponseDto } from "@/services";
 
-const MOCK_POINTS = 1250;
+type VoucherWithColor = VoucherResponseDto & { color: string };
 
-/** Chỉ voucher tiền – đổi từ điểm. minOrderAmount: đơn tối thiểu (VNĐ) để dùng voucher */
-type MoneyVoucher = {
-  id: string;
-  value: string;
-  pointsCost: number;
-  minOrderAmount: number;
-  color: string;
-};
+function formatDiscountValue(value: number): string {
+  if (value % 1000 === 0) {
+    return `${value / 1000}K`;
+  }
+  return `${value.toLocaleString("vi-VN")}đ`;
+}
 
-const SYSTEM_VOUCHERS: MoneyVoucher[] = [
-  { id: "1", value: "5K", pointsCost: 1000, minOrderAmount: 50000, color: "bg-teal-500" },
-  { id: "2", value: "10K", pointsCost: 2000, minOrderAmount: 100000, color: "bg-amber-500" },
-  { id: "3", value: "20K", pointsCost: 4000, minOrderAmount: 150000, color: "bg-yellow-400" },
-  { id: "4", value: "50K", pointsCost: 10000, minOrderAmount: 300000, color: "bg-blue-600" },
-  { id: "5", value: "100K", pointsCost: 20000, minOrderAmount: 500000, color: "bg-violet-600" },
-  { id: "6", value: "200K", pointsCost: 40000, minOrderAmount: 800000, color: "bg-emerald-600" },
-  { id: "7", value: "500K", pointsCost: 80000, minOrderAmount: 1500000, color: "bg-rose-500" },
-];
-
-function MoneyVoucherCard({ v }: { v: MoneyVoucher }) {
+function MoneyVoucherCard({ v }: { v: VoucherWithColor }) {
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-shadow hover:shadow-lg">
       {/* Phần trên: mệnh giá trên nền màu có họa tiết chấm */}
@@ -39,14 +30,14 @@ function MoneyVoucherCard({ v }: { v: MoneyVoucher }) {
           aria-hidden
         />
         <span className="relative text-3xl font-bold text-white drop-shadow-md sm:text-4xl">
-          {v.value}
+          {formatDiscountValue(v.discountValue)}
         </span>
       </div>
       {/* Phần dưới: thương hiệu, mô tả, nút đổi */}
       <div className="flex flex-col rounded-b-2xl bg-white p-4">
         <p className="text-xs text-slate-400">Scan2Order</p>
         <p className="mt-1 text-sm font-bold text-slate-900">
-          PHIẾU GIẢM GIÁ {v.value} ĐỔI TỪ ĐIỂM TÍCH LŨY
+          {v.name}
         </p>
         <p className="mt-2 text-xs text-slate-500">
           Đơn tối thiểu: {v.minOrderAmount.toLocaleString("vi-VN")}đ
@@ -55,7 +46,7 @@ function MoneyVoucherCard({ v }: { v: MoneyVoucher }) {
           type="button"
           className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200"
         >
-          {v.pointsCost.toLocaleString("vi-VN")} Điểm · Đổi
+          {v.pointRequire.toLocaleString("vi-VN")} Điểm · Đổi
         </button>
       </div>
     </article>
@@ -63,6 +54,71 @@ function MoneyVoucherCard({ v }: { v: MoneyVoucher }) {
 }
 
 export function VoucherPage() {
+  const [vouchers, setVouchers] = useState<VoucherWithColor[]>([]);
+  const [points, setPoints] = useState<number | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function fetchData() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const [apiVouchers, myPoint] = await Promise.all([
+          getAllVouchers(),
+          getMyPoint().catch((err: any) => {
+            if (err?.response?.status === 401 || err?.response?.status === 403) {
+              router.push(ROUTES.LOGIN);
+              throw err;
+            }
+            return 0;
+          }),
+        ]);
+
+        if (cancelled) return;
+
+        setPoints(myPoint);
+
+        const colors = [
+          "bg-teal-500",
+          "bg-amber-500",
+          "bg-yellow-400",
+          "bg-blue-600",
+          "bg-violet-600",
+          "bg-emerald-600",
+          "bg-rose-500",
+        ];
+
+        const withColors: VoucherWithColor[] = apiVouchers.map((v, index) => ({
+          ...v,
+          color: colors[index % colors.length],
+        }));
+
+        setVouchers(withColors);
+      } catch (err: any) {
+        if (err?.response?.status === 401 || err?.response?.status === 403) {
+          router.push(ROUTES.LOGIN);
+          return;
+        }
+        setError("Không tải được danh sách voucher. Vui lòng thử lại sau.");
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#F6F3EC] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
@@ -80,7 +136,7 @@ export function VoucherPage() {
               <div>
                 <p className="text-sm text-slate-500">Điểm · Scan2Order</p>
                 <p className="text-2xl font-bold tabular-nums text-slate-900 sm:text-3xl">
-                  {MOCK_POINTS.toLocaleString("vi-VN")}
+                  {points !== null ? points.toLocaleString("vi-VN") : "—"}
                 </p>
               </div>
             </div>
@@ -102,11 +158,30 @@ export function VoucherPage() {
           <p className="mb-4 text-sm text-slate-600">
             Phiếu giảm giá theo mệnh giá (VNĐ). Chọn mệnh giá và bấm Đổi.
           </p>
-          <div className="grid grid-cols-2 gap-4 sm:gap-5">
-            {SYSTEM_VOUCHERS.map((v) => (
-              <MoneyVoucherCard key={v.id} v={v} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="grid grid-cols-2 gap-4 sm:gap-5">
+              {Array.from({ length: 4 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="h-40 animate-pulse rounded-2xl bg-slate-200/70"
+                />
+              ))}
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          ) : vouchers.length === 0 ? (
+            <div className="rounded-2xl bg-white/80 p-6 text-center text-sm text-slate-500">
+              Hiện chưa có voucher nào trong hệ thống.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 sm:gap-5">
+              {vouchers.map((v) => (
+                <MoneyVoucherCard key={v.id} v={v} />
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </div>
