@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Gift, Ticket } from "lucide-react";
 import { ROUTES } from "@/routes";
-import { getAllVouchers, getMyPoint, type VoucherResponseDto } from "@/services";
+import { getAllVouchers, getMyPoint, redeemVoucher, type VoucherResponseDto } from "@/services";
 
 type VoucherWithColor = VoucherResponseDto & { color: string };
 
@@ -16,7 +16,20 @@ function formatDiscountValue(value: number): string {
   return `${value.toLocaleString("vi-VN")}đ`;
 }
 
-function MoneyVoucherCard({ v }: { v: VoucherWithColor }) {
+function MoneyVoucherCard({ 
+  v, 
+  points, 
+  onRedeem, 
+  isRedeeming 
+}: { 
+  v: VoucherWithColor; 
+  points: number | null;
+  onRedeem: (voucherId: number) => void;
+  isRedeeming: boolean;
+}) {
+  const hasEnoughPoints = points !== null && points >= v.pointRequire;
+  const canRedeem = hasEnoughPoints && !isRedeeming;
+
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-shadow hover:shadow-lg">
       {/* Phần trên: mệnh giá trên nền màu có họa tiết chấm */}
@@ -44,9 +57,17 @@ function MoneyVoucherCard({ v }: { v: VoucherWithColor }) {
         </p>
         <button
           type="button"
-          className="mt-4 w-full rounded-xl bg-slate-100 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200"
+          onClick={() => onRedeem(v.id)}
+          disabled={!canRedeem}
+          className={`mt-4 w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
+            hasEnoughPoints
+              ? "bg-emerald-600 text-white hover:bg-emerald-700 active:bg-emerald-800 shadow-sm hover:shadow disabled:bg-emerald-400 disabled:cursor-not-allowed"
+              : "bg-slate-300 text-slate-500 cursor-not-allowed"
+          }`}
         >
-          {v.pointRequire.toLocaleString("vi-VN")} Điểm · Đổi
+          {isRedeeming
+            ? "Đang xử lý..."
+            : `${v.pointRequire.toLocaleString("vi-VN")} Điểm · Đổi`}
         </button>
       </div>
     </article>
@@ -58,6 +79,8 @@ export function VoucherPage() {
   const [points, setPoints] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [redeemingVoucherId, setRedeemingVoucherId] = useState<number | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -119,6 +142,44 @@ export function VoucherPage() {
     };
   }, [router]);
 
+  const handleRedeem = async (voucherId: number) => {
+    if (points === null || points < vouchers.find(v => v.id === voucherId)?.pointRequire!) {
+      setError("Điểm không đủ để đổi voucher này.");
+      return;
+    }
+
+    setRedeemingVoucherId(voucherId);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      await redeemVoucher({ voucherId });
+      
+      setSuccessMessage("Đổi voucher thành công! Vui lòng kiểm tra tại mục Voucher của tôi.");
+      
+      const updatedPoints = await getMyPoint();
+      setPoints(updatedPoints);
+      
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+    } catch (err: any) {
+      if (err?.response?.status === 401 || err?.response?.status === 403) {
+        router.push(ROUTES.LOGIN);
+        return;
+      }
+      
+      const errorMsg = err?.response?.data?.message || "Không thể đổi voucher. Vui lòng thử lại sau.";
+      setError(errorMsg);
+      
+      setTimeout(() => {
+        setError(null);
+      }, 5000);
+    } finally {
+      setRedeemingVoucherId(null);
+    }
+  };
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#F6F3EC] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
@@ -158,6 +219,19 @@ export function VoucherPage() {
           <p className="mb-4 text-sm text-slate-600">
             Phiếu giảm giá theo mệnh giá (VNĐ). Chọn mệnh giá và bấm Đổi.
           </p>
+          
+          {successMessage && (
+            <div className="mb-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">
+              {successMessage}
+            </div>
+          )}
+          
+          {error && (
+            <div className="mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          
           {loading ? (
             <div className="grid grid-cols-2 gap-4 sm:gap-5">
               {Array.from({ length: 4 }).map((_, idx) => (
@@ -178,7 +252,13 @@ export function VoucherPage() {
           ) : (
             <div className="grid grid-cols-2 gap-4 sm:gap-5">
               {vouchers.map((v) => (
-                <MoneyVoucherCard key={v.id} v={v} />
+                <MoneyVoucherCard 
+                  key={v.id} 
+                  v={v} 
+                  points={points}
+                  onRedeem={handleRedeem}
+                  isRedeeming={redeemingVoucherId === v.id}
+                />
               ))}
             </div>
           )}

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Gift, CheckCircle } from "lucide-react";
+import { getMyVouchers, getMyExpiredVouchers, type MemberVoucherDto } from "@/services/voucherService";
 
-/** Voucher tiền – hiệu lực hoặc đã sử dụng. minOrderAmount: đơn tối thiểu (VNĐ) */
 type MoneyVoucher = {
   id: string;
   value: string;
@@ -12,14 +12,36 @@ type MoneyVoucher = {
   usedAt?: string;
 };
 
-const MY_ACTIVE: MoneyVoucher[] = [
-  { id: "m1", value: "10K", minOrderAmount: 100000, color: "bg-amber-500" },
-  { id: "m2", value: "20K", minOrderAmount: 150000, color: "bg-emerald-600" },
-];
+const COLORS = ["bg-amber-500", "bg-emerald-600", "bg-blue-500", "bg-purple-500", "bg-pink-500"];
 
-const MY_USED: MoneyVoucher[] = [
-  { id: "u1", value: "5K", minOrderAmount: 50000, color: "bg-slate-400", usedAt: "05/06" },
-];
+function formatDiscountValue(value: number): string {
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(0)}K`;
+  }
+  return `${value.toFixed(0)}K`;
+}
+
+function formatDate(dateString: string | null): string | undefined {
+  if (!dateString) return undefined;
+  try {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    return `${day}/${month}`;
+  } catch {
+    return undefined;
+  }
+}
+
+function mapVoucherToMoneyVoucher(v: MemberVoucherDto, index: number): MoneyVoucher {
+  return {
+    id: `v${v.memberVoucherId}`,
+    value: formatDiscountValue(v.discountValue),
+    minOrderAmount: v.minOrderAmount,
+    color: COLORS[index % COLORS.length],
+    usedAt: formatDate(v.expiredAt),
+  };
+}
 
 function MyVoucherCard({ v, variant }: { v: MoneyVoucher; variant: "active" | "used" }) {
   const isUsed = variant === "used";
@@ -64,6 +86,33 @@ function MyVoucherCard({ v, variant }: { v: MoneyVoucher; variant: "active" | "u
 
 export function MyVouchersPage() {
   const [tab, setTab] = useState<"active" | "used">("active");
+  const [activeVouchers, setActiveVouchers] = useState<MoneyVoucher[]>([]);
+  const [expiredVouchers, setExpiredVouchers] = useState<MoneyVoucher[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchVouchers = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        if (tab === "active") {
+          const data = await getMyVouchers();
+          setActiveVouchers(data.map(mapVoucherToMoneyVoucher));
+        } else {
+          const data = await getMyExpiredVouchers();
+          setExpiredVouchers(data.map(mapVoucherToMoneyVoucher));
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Có lỗi xảy ra khi tải voucher");
+        console.error("Error fetching vouchers:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchVouchers();
+  }, [tab]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#F6F3EC] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
@@ -100,12 +149,20 @@ export function MyVouchersPage() {
 
         {tab === "active" && (
           <div className="grid grid-cols-2 gap-4 sm:gap-5">
-            {MY_ACTIVE.length === 0 ? (
+            {loading ? (
+              <div className="col-span-2 rounded-2xl bg-white/80 py-10 text-center text-slate-500">
+                Đang tải...
+              </div>
+            ) : error ? (
+              <div className="col-span-2 rounded-2xl bg-red-50 py-10 text-center text-red-600">
+                {error}
+              </div>
+            ) : activeVouchers.length === 0 ? (
               <div className="col-span-2 rounded-2xl bg-white/80 py-10 text-center text-slate-500">
                 Chưa có voucher hiệu lực. Hãy đổi phiếu giảm giá tại mục Điểm voucher.
               </div>
             ) : (
-              MY_ACTIVE.map((v) => (
+              activeVouchers.map((v) => (
                 <MyVoucherCard key={v.id} v={v} variant="active" />
               ))
             )}
@@ -114,12 +171,20 @@ export function MyVouchersPage() {
 
         {tab === "used" && (
           <div className="grid grid-cols-2 gap-4 sm:gap-5">
-            {MY_USED.length === 0 ? (
+            {loading ? (
+              <div className="col-span-2 rounded-2xl bg-white/80 py-10 text-center text-slate-500">
+                Đang tải...
+              </div>
+            ) : error ? (
+              <div className="col-span-2 rounded-2xl bg-red-50 py-10 text-center text-red-600">
+                {error}
+              </div>
+            ) : expiredVouchers.length === 0 ? (
               <div className="col-span-2 rounded-2xl bg-white/80 py-10 text-center text-slate-500">
                 Chưa có voucher nào đã sử dụng.
               </div>
             ) : (
-              MY_USED.map((v) => (
+              expiredVouchers.map((v) => (
                 <MyVoucherCard key={v.id} v={v} variant="used" />
               ))
             )}
