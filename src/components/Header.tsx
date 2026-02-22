@@ -7,7 +7,14 @@ import { useRouter } from "next/navigation";
 import { Menu, User, Gift, Ticket, LogIn, LogOut } from "lucide-react";
 import { APP_NAME } from "@/lib/constants";
 import { ROUTES } from "@/routes";
-import { getAccessToken, logout } from "@/services";
+import {
+  getAccessToken,
+  logout,
+  isTokenExpired,
+  refreshAccessToken,
+  clearTokens,
+  AUTH_SESSION_EXPIRED_EVENT,
+} from "@/services";
 import logoDefault from "@/assets/images/logo/logo_removebg.png";
 
 const menuItems = [
@@ -23,7 +30,27 @@ export function Header() {
   const router = useRouter();
 
   useEffect(() => {
-    setIsLoggedIn(!!getAccessToken());
+    function checkAuth() {
+      const token = getAccessToken();
+      if (!token) {
+        setIsLoggedIn(false);
+        return;
+      }
+      if (!isTokenExpired(token)) {
+        setIsLoggedIn(true);
+        return;
+      }
+      refreshAccessToken().then((result) => {
+        setIsLoggedIn(!!result);
+        if (!result) clearTokens();
+      });
+    }
+    checkAuth();
+
+    const onSessionExpired = () => setIsLoggedIn(false);
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+    return () =>
+      window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
 
   const handleLogout = async () => {

@@ -1,25 +1,28 @@
+import Link from "next/link";
 import { HeroSection } from "@/components/HeroSection";
-import { RestaurantCard } from "@/components/RestaurantCard";
-import type { Restaurant } from "@/types";
+import { NearbyRestaurantGrid } from "@/components/NearbyRestaurantGrid";
+import { ROUTES } from "@/routes";
+import { ChevronRight } from "lucide-react";
 
-interface HomePageProps {
-  restaurants: Restaurant[];
-}
-
-export function HomePage({ restaurants }: HomePageProps) {
+export function HomePage() {
   return (
     <>
       <HeroSection />
 
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <h2 className="mb-8 text-2xl font-bold text-slate-900">
-          Nhà hàng nổi bật
-        </h2>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {restaurants.map((restaurant) => (
-            <RestaurantCard key={restaurant.id} restaurant={restaurant} />
-          ))}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-2xl font-bold text-slate-900">
+            Nhà hàng gần đây
+          </h2>
+          <Link
+            href={ROUTES.RESTAURANTS}
+            className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-700"
+          >
+            Tất cả nhà hàng
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </div>
+        <NearbyRestaurantGrid />
       </section>
     </>
   );

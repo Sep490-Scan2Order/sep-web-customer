@@ -1,13 +1,10 @@
 import { MainLayout } from "@/layouts";
-import { getRestaurants } from "@/services";
 import { HomePage } from "@/views";
 
-export default async function Page() {
-  const restaurants = await getRestaurants();
-
+export default function Page() {
   return (
     <MainLayout>
-      <HomePage restaurants={restaurants} />
+      <HomePage />
     </MainLayout>
   );
 }

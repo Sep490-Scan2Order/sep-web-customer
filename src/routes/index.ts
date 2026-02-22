@@ -10,4 +10,5 @@ export const ROUTES = {
   VOUCHER: "/voucher",
   MY_VOUCHERS: "/my-vouchers",
   RESTAURANT: (id: string) => `/restaurant/${id}`,
+  RESTAURANTS: "/restaurants",
 } as const;
