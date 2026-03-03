@@ -265,7 +265,7 @@ export function NearbyRestaurantGrid() {
       >
         {restaurants.map((restaurant) => (
           <div
-            key={restaurant.id}
+            key={restaurant.renderKey ?? restaurant.id}
             className="w-[85vw] shrink-0 sm:w-72 md:w-80"
             style={{ scrollSnapAlign: "start" }}
           >

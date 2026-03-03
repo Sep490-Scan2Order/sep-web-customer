@@ -4,12 +4,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, MapPin, Info, X } from "lucide-react";
 import { MainLayout } from "@/layouts";
-import type { RestaurantDetailDto } from "@/services/restaurantService";
+import type { RestaurantSlugResponseData } from "@/types";
 import { ROUTES } from "@/routes";
 import { FALLBACK_RESTAURANT_IMAGE } from "@/lib/constants";
 
 interface RestaurantDetailViewProps {
-  restaurant: RestaurantDetailDto;
+  restaurant: RestaurantSlugResponseData;
 }
 
 const MENU_CATEGORIES = [
@@ -20,7 +20,7 @@ const MENU_CATEGORIES = [
   "Món chính",
 ];
 
-function buildDirectionsUrl(r: RestaurantDetailDto): string {
+function buildDirectionsUrl(r: RestaurantSlugResponseData): string {
   const lat = r.latitude;
   const lng = r.longitude;
   if (typeof lat === "number" && typeof lng === "number" && !Number.isNaN(lat) && !Number.isNaN(lng)) {
@@ -80,6 +80,7 @@ export default function RestaurantDetailView({
           {r.description && (
             <p className="mt-1 text-slate-600">{r.description}</p>
           )}
+          {r.address && <p className="mt-1 text-sm text-slate-500">{r.address}</p>}
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
             {distanceText && (
               <span className="text-slate-500">{distanceText}</span>
@@ -92,6 +93,16 @@ export default function RestaurantDetailView({
 
         {/* Action buttons */}
         <section className="flex gap-3 border-b border-slate-200 bg-white px-4 py-3">
+          {r.qrMenu && (
+            <a
+              href={r.qrMenu}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-slate-50 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              Mua mang về
+            </a>
+          )}
           <a
             href={buildDirectionsUrl(r)}
             target="_blank"

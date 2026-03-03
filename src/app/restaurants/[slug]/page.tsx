@@ -1,17 +1,17 @@
 import { notFound } from "next/navigation";
-import { getRestaurantById } from "@/services/restaurantService";
+import { getRestaurantBySlug } from "@/services";
 import RestaurantDetailView from "@/views/RestaurantDetail";
 
-interface RestaurantPageProps {
-  params: Promise<{ id: string }>;
+interface RestaurantDetailPageProps {
+  params: Promise<{ slug: string }>;
 }
 
-export default async function RestaurantPage({ params }: RestaurantPageProps) {
+export default async function RestaurantDetailPage({ params }: RestaurantDetailPageProps) {
   // 1. Xử lý Logic lấy tham số (Controller)
-  const { id } = await params;
+  const { slug } = await params;
 
   // 2. Xử lý Logic lấy dữ liệu (Service)
-  const restaurant = await getRestaurantById(id);
+  const restaurant = await getRestaurantBySlug(slug);
 
   // 3. Xử lý logic điều hướng
   if (!restaurant) {

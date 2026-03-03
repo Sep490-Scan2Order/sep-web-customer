@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
@@ -62,13 +62,27 @@ async function geocodeAddress(
   };
 }
 
+function getRestaurantId(dto: { profileUrl?: string | null; slug?: string; id: number }): string {
+  if (dto.profileUrl) {
+    try {
+      const path = new URL(dto.profileUrl).pathname;
+      const segments = path.split('/').filter(Boolean);
+      if (segments.length > 0) return segments[segments.length - 1];
+    } catch {
+      // Invalid URL, fallback
+    }
+  }
+  return dto.slug || String(dto.id);
+}
+
 function dtoToRestaurant(d: RestaurantDto): Restaurant {
   return {
     id: String(d.id),
+    renderKey: `all-${d.id}`,
     name: d.restaurantName,
     image: d.image || "/placeholder-restaurant.jpg",
     rating: 0,
-    cuisineType: d.description || "Nhà hàng",
+    cuisineType: d.description || "NhÃ  hÃ ng",
     distance: `~ ${d.distanceKm.toFixed(2)} km`,
     address: d.address,
   };
@@ -112,7 +126,7 @@ export function AllRestaurantsList() {
         .catch((err) => {
           if (pageNum === 1) {
             setError(
-              err?.message ?? "Không tải được danh sách nhà hàng."
+              err?.message ?? "KhÃ´ng táº£i Ä‘Æ°á»£c danh sÃ¡ch nhÃ  hÃ ng."
             );
             setStatus("error");
           }
@@ -184,7 +198,7 @@ export function AllRestaurantsList() {
     try {
       const c = await geocodeAddress(trimmed);
       if (!c) {
-        setError("Không tìm thấy địa chỉ. Bạn thử nhập rõ hơn nhé.");
+        setError("KhÃ´ng tÃ¬m tháº¥y Ä‘á»‹a chá»‰. Báº¡n thá»­ nháº­p rÃµ hÆ¡n nhÃ©.");
         return;
       }
       setCachedPosition(c.lat, c.lon);
@@ -193,7 +207,7 @@ export function AllRestaurantsList() {
       setShowAddressInput(false);
       setAddressValue("");
     } catch {
-      setError("Không tìm được nhà hàng theo địa chỉ này.");
+      setError("KhÃ´ng tÃ¬m Ä‘Æ°á»£c nhÃ  hÃ ng theo Ä‘á»‹a chá»‰ nÃ y.");
     } finally {
       setAddressLoading(false);
     }
@@ -220,8 +234,8 @@ export function AllRestaurantsList() {
           <MapPin className="h-10 w-10" strokeWidth={1.5} />
         </div>
         <p className="mb-6 max-w-md text-slate-700">
-          S2O chưa biết bạn đang ở đâu! Nhập địa chỉ để khám phá các nhà hàng
-          ngon quanh bạn nhé.
+          S2O chÆ°a biáº¿t báº¡n Ä‘ang á»Ÿ Ä‘Ã¢u! Nháº­p Ä‘á»‹a chá»‰ Ä‘á»ƒ khÃ¡m phÃ¡ cÃ¡c nhÃ  hÃ ng
+          ngon quanh báº¡n nhÃ©.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <button
@@ -229,14 +243,14 @@ export function AllRestaurantsList() {
             onClick={() => setShowAddressInput((v) => !v)}
             className="rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white shadow-md transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
           >
-            Nhập địa chỉ của bạn
+            Nháº­p Ä‘á»‹a chá»‰ cá»§a báº¡n
           </button>
           <button
             type="button"
             onClick={() => requestLocation(true)}
             className="text-sm font-medium text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-800 hover:decoration-slate-500"
           >
-            Bật vị trí (GPS)
+            Báº­t vá»‹ trÃ­ (GPS)
           </button>
         </div>
         {showAddressInput && (
@@ -248,7 +262,7 @@ export function AllRestaurantsList() {
               type="text"
               value={addressValue}
               onChange={(e) => setAddressValue(e.target.value)}
-              placeholder="Ví dụ: 50 Lê Văn Việt, Quận 9, TP.HCM"
+              placeholder="VÃ­ dá»¥: 50 LÃª VÄƒn Viá»‡t, Quáº­n 9, TP.HCM"
               className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               autoFocus
               disabled={addressLoading}
@@ -259,7 +273,7 @@ export function AllRestaurantsList() {
                 disabled={addressLoading || !addressValue.trim()}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
               >
-                {addressLoading ? "Đang tìm..." : "Tìm nhà hàng"}
+                {addressLoading ? "Äang tÃ¬m..." : "TÃ¬m nhÃ  hÃ ng"}
               </button>
               <button
                 type="button"
@@ -270,7 +284,7 @@ export function AllRestaurantsList() {
                 }}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
               >
-                Hủy
+                Há»§y
               </button>
             </div>
             {error && (
@@ -291,7 +305,7 @@ export function AllRestaurantsList() {
   if (restaurants.length === 0) {
     return (
       <p className="rounded-xl bg-slate-100 p-4 text-slate-600">
-        Không có nhà hàng nào.
+        KhÃ´ng cÃ³ nhÃ  hÃ ng nÃ o.
       </p>
     );
   }
@@ -300,7 +314,10 @@ export function AllRestaurantsList() {
     <>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {restaurants.map((restaurant) => (
-          <RestaurantCard key={restaurant.id} restaurant={restaurant} />
+          <RestaurantCard
+            key={restaurant.renderKey ?? restaurant.id}
+            restaurant={restaurant}
+          />
         ))}
       </div>
       <div ref={sentinelRef} className="h-4 w-full" aria-hidden />
