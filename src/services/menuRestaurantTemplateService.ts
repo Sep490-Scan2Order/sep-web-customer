@@ -4,6 +4,8 @@ import type {
 	MenuLayoutConfig,
 	MenuRestaurantTemplateResponse,
 	MenuRestaurantTemplateResponseData,
+	RestaurantSlugResponse,
+	RestaurantSlugResponseData,
 } from "@/types";
 
 export interface MenuCategoryItem {
@@ -40,6 +42,27 @@ export async function getMenuRestaurantTemplateByRestaurantId(
 	try {
 		const { data } = await api.get<MenuRestaurantTemplateResponse>(
 			`api/MenuRestaurant/${restaurantId}`
+		);
+		if (data.isSuccess && data.data) return data.data;
+		return null;
+	} catch (err: unknown) {
+		const status = (err as { response?: { status?: number } })?.response?.status;
+		if (status === 404) return null;
+		throw err;
+	}
+}
+
+/**
+ * Lấy thông tin restaurant bao gồm tenantId
+ */
+export async function getRestaurantById(
+	restaurantId: number
+): Promise<RestaurantSlugResponseData | null> {
+	if (!Number.isFinite(restaurantId) || restaurantId <= 0) return null;
+
+	try {
+		const { data } = await api.get<RestaurantSlugResponse>(
+			`api/Restaurant/${restaurantId}`
 		);
 		if (data.isSuccess && data.data) return data.data;
 		return null;
@@ -118,15 +141,53 @@ function extractArrayPayload(payload: unknown): Record<string, unknown>[] {
 	return [];
 }
 
-function toSourceCandidates(source: string | undefined, kind: "category" | "dish"): string[] {
+function toSourceCandidates(
+	source: string | undefined,
+	kind: "category" | "dish",
+	tenantId?: string
+): string[] {
 	const normalized = source?.trim().toUpperCase();
-	if (normalized === "API.CATEGORY.GET_ALL") {
+	
+	// Xử lý API.CATEGORY.GET_ALL_BY_TENANT_ID(tenantId)
+	if (normalized?.includes("GET_ALL_BY_TENANT_ID")) {
+		if (!tenantId) {
+			console.warn("tenantId required for GET_ALL_BY_TENANT_ID but not provided");
+			return [];
+		}
+		if (normalized.includes("CATEGORY")) {
+			return [`api/Category/get-category-by-tenantId/${tenantId}`];
+		}
+		if (normalized.includes("DISH")) {
+			return [`api/Dish/get-dish-by-tenantId/${tenantId}`];
+		}
+	}
+	
+	// Nếu source là GET_ALL nhưng có tenantId, ưu tiên dùng GET_ALL_BY_TENANT_ID
+	if (normalized === "API.CATEGORY.GET_ALL" || normalized === "API.CATEGORIES.GET_ALL") {
+		if (tenantId) {
+			// Có tenantId → dùng endpoint by tenantId
+			return [`api/Category/get-category-by-tenantId/${tenantId}`];
+		}
+		// Không có tenantId → fallback endpoint cũ
 		return ["api/Category", "api/Categories", "api/Category/get-all"];
 	}
-	if (normalized === "API.DISHES.GET_ALL") {
+	
+	if (normalized === "API.DISHES.GET_ALL" || normalized === "API.DISH.GET_ALL") {
+		if (tenantId) {
+			// Có tenantId → dùng endpoint by tenantId
+			return [`api/Dish/get-dish-by-tenantId/${tenantId}`];
+		}
+		// Không có tenantId → fallback endpoint cũ
 		return ["api/Dishes", "api/Dish", "api/Dishes/get-all"];
 	}
+	
 	if (!source) {
+		// Default fallback
+		if (tenantId) {
+			return kind === "category"
+				? [`api/Category/get-category-by-tenantId/${tenantId}`]
+				: [`api/Dish/get-dish-by-tenantId/${tenantId}`];
+		}
 		return kind === "category"
 			? ["api/Category", "api/Categories"]
 			: ["api/Dishes", "api/Dish"];
@@ -146,12 +207,16 @@ function toSourceCandidates(source: string | undefined, kind: "category" | "dish
 
 async function fetchFirstMatchedArray(
 	paths: string[],
-	restaurantId: number
+	restaurantId?: number
 ): Promise<Record<string, unknown>[]> {
 	for (const path of paths) {
 		try {
+			// Kiểm tra nếu path đã có tenantId trong URL thì không cần thêm params
+			const hasTenantIdInPath = path.includes("/get-category-by-tenantId/") || 
+									   path.includes("/get-dish-by-tenantId/");
+			
 			const { data } = await api.get<unknown>(path, {
-				params: {
+				params: hasTenantIdInPath ? undefined : {
 					restaurantId,
 					restaurantID: restaurantId,
 					restaurant_id: restaurantId,
@@ -208,19 +273,26 @@ function normalizeDish(item: Record<string, unknown>, index: number): MenuDishIt
 
 export async function getRestaurantMenuByDataMapping(
 	restaurantId: number,
-	mapping: MenuLayoutConfig["dataMapping"]
+	mapping: MenuLayoutConfig["dataMapping"],
+	tenantId?: string
 ): Promise<RestaurantMenuData> {
 	if (!mapping) {
 		return { sections: [], ungroupedDishes: [] };
 	}
 
-	const categoryPaths = toSourceCandidates(mapping.categories?.source, "category");
-	const dishPaths = toSourceCandidates(mapping.dishes?.source, "dish");
+	const categoryPaths = toSourceCandidates(mapping.categories?.source, "category", tenantId);
+	const dishPaths = toSourceCandidates(mapping.dishes?.source, "dish", tenantId);
+
+	console.log("📡 Fetching from paths:");
+	console.log("  Categories:", categoryPaths);
+	console.log("  Dishes:", dishPaths);
 
 	const [categoryRaw, dishRaw] = await Promise.all([
 		fetchFirstMatchedArray(categoryPaths, restaurantId),
 		fetchFirstMatchedArray(dishPaths, restaurantId),
 	]);
+
+	console.log(`📊 Fetched ${categoryRaw.length} categories, ${dishRaw.length} dishes`);
 
 	const categories = categoryRaw.map((item, index) =>
 		normalizeCategory(item, index, mapping.categories?.displayField)
@@ -304,4 +376,48 @@ export async function getRestaurantGroupedMenu(
 	}
 
 	return { sections: [], ungroupedDishes: [] };
+}
+
+/**
+ * Kết quả lấy menu từ template
+ */
+export interface RestaurantMenuFromTemplateResult {
+	menuData: RestaurantMenuData;
+	templateData: MenuRestaurantTemplateResponseData | null;
+}
+
+/**
+ * Lấy menu của restaurant từ template đã được áp dụng
+ * Fetch menu data từ grouped menu API
+ * Trả về cả menu data lẫn template info
+ */
+export async function getRestaurantMenuFromTemplate(
+	restaurantId: number
+): Promise<RestaurantMenuFromTemplateResult> {
+	const defaultResult: RestaurantMenuFromTemplateResult = {
+		menuData: { sections: [], ungroupedDishes: [] },
+		templateData: null,
+	};
+
+	if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+		return defaultResult;
+	}
+
+	try {
+		// Lấy template của restaurant (để có layout config)
+		const templateData = await getMenuRestaurantTemplateByRestaurantId(restaurantId);
+
+		console.log(`🔍 Fetching menu for restaurant ${restaurantId}`);
+
+		// Fetch menu data từ grouped menu API
+		const menuData = await getRestaurantGroupedMenu(restaurantId);
+
+		console.log(`✅ Loaded ${menuData.sections.length} sections, ${menuData.ungroupedDishes.length} ungrouped dishes`);
+		return { menuData, templateData };
+	} catch (err: unknown) {
+		console.error("Error loading menu from template:", err);
+		// Fallback về grouped menu API nếu có lỗi
+		const groupedMenu = await getRestaurantGroupedMenu(restaurantId);
+		return { menuData: groupedMenu, templateData: null };
+	}
 }
