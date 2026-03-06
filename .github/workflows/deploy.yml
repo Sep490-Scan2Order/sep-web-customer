@@ -11,24 +11,26 @@ jobs:
     steps:
       - name: SSH into VM and Deploy
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          ENV_FILE: ${{ secrets.ENV_FILE }} # Lấy dữ liệu từ GitHub
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.VM_SSH_KEY }}
+          envs: ENV_FILE # Khai báo biến môi trường cho script
           script: |
-            # Tải môi trường Node.js (NVM)
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
             
-            # Di chuyển vào thư mục code
             cd /var/www/sep-web-customer
             
-            # Dọn dẹp thay đổi cũ và kéo code mới nhất từ GitHub
+            # 1. Tự động tạo file .env từ biến GitHub Secret
+            echo "$ENV_FILE" > .env
+            
+            # 2. Pull code mới
             git reset --hard
             git pull origin main
             
-            # Cài đặt các gói thư viện mới (nếu có thêm trong package.json)
+            # 3. Cài đặt và chạy lại
             npm install
-            
-            # Khởi động lại ứng dụng bằng PM2
             pm2 restart sep-web-dev || pm2 start npm --name "sep-web-dev" -- run dev
