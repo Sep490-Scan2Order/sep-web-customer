@@ -52,27 +52,6 @@ export async function getMenuRestaurantTemplateByRestaurantId(
 	}
 }
 
-/**
- * Lấy thông tin restaurant bao gồm tenantId
- */
-export async function getRestaurantById(
-	restaurantId: number
-): Promise<RestaurantSlugResponseData | null> {
-	if (!Number.isFinite(restaurantId) || restaurantId <= 0) return null;
-
-	try {
-		const { data } = await api.get<RestaurantSlugResponse>(
-			`api/Restaurant/${restaurantId}`
-		);
-		if (data.isSuccess && data.data) return data.data;
-		return null;
-	} catch (err: unknown) {
-		const status = (err as { response?: { status?: number } })?.response?.status;
-		if (status === 404) return null;
-		throw err;
-	}
-}
-
 export function parseMenuLayoutConfig(
 	layoutConfigJson?: string | null
 ): MenuLayoutConfig | null {
