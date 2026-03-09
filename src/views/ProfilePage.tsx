@@ -1,16 +1,68 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, Calendar, ArrowRight } from "lucide-react";
+import { toast, ToastContainer } from "react-toastify";
+import { updateCustomerInfo } from "@/services";
+import { getUserInfo, setUserInfo } from "@/services";
 
 export function ProfilePage() {
   const [name, setName] = useState("");
   const [dob, setDob] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  // Load userInfo từ localStorage khi component mount
+  useEffect(() => {
+    const userInfo = getUserInfo();
+    if (userInfo) {
+      setName(userInfo.name || "");
+      // Convert ISO date to YYYY-MM-DD format for input[type="date"]
+      if (userInfo.dob) {
+        const date = new Date(userInfo.dob);
+        const formattedDate = date.toISOString().split("T")[0];
+        setDob(formattedDate);
+      }
+    }
+  }, []);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: gọi API lưu profile
-    console.log("Save profile:", { name, dob });
+    
+    if (!name.trim()) {
+      toast.error("Vui lòng nhập họ và tên");
+      return;
+    }
+    
+    if (!dob) {
+      toast.error("Vui lòng chọn ngày sinh");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await updateCustomerInfo(name, dob);
+      
+      if (response.isSuccess) {
+        toast.success(response.message || "Cập nhật thông tin thành công!");
+        
+        // Lưu userInfo mới vào localStorage
+        if (response.data) {F
+          setUserInfo({
+            dob: response.data.dob,
+            name: response.data.name,
+            accountId: response.data.accountId,
+            id: response.data.id,
+          });
+        }
+      } else {
+        toast.error(response.message || "Có lỗi xảy ra khi cập nhật thông tin");
+      }
+    } catch (error: unknown) {
+      console.error("Error updating profile:", error);
+      toast.error("Không thể cập nhật thông tin. Vui lòng thử lại sau.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,14 +115,24 @@ export function ProfilePage() {
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-700"
+              disabled={isLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Lưu thay đổi
+              {isLoading ? "Đang lưu..." : "Lưu thay đổi"}
               <ArrowRight className="h-4 w-4" />
             </button>
           </form>
         </section>
       </div>
+      
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        closeOnClick
+        pauseOnHover
+        draggable
+      />
     </div>
   );
 }

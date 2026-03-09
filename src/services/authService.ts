@@ -2,8 +2,16 @@ import { api } from "@/axios";
 
 const ACCESS_TOKEN_KEY = "s2o_access_token";
 const REFRESH_TOKEN_KEY = "s2o_refresh_token";
+const USER_INFO_KEY = "s2o_user_info";
 
 export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
+
+export interface UserInfo {
+  dob: string;
+  name: string;
+  accountId: string;
+  id: string;
+}
 
 export interface LoginPhoneResponse {
   isSuccess: boolean;
@@ -11,6 +19,21 @@ export interface LoginPhoneResponse {
   data: {
     accessToken: string;
     refreshToken: string;
+    userInfo?: UserInfo;
+  };
+}
+
+export interface SendOtpResponse {
+  isSuccess: boolean;
+  message: string;
+}
+
+export interface RegisterPhoneResponse {
+  isSuccess: boolean;
+  message: string;
+  data?: {
+    accessToken?: string;
+    refreshToken?: string;
   };
 }
 
@@ -59,6 +82,28 @@ export async function loginPhone(
   return data;
 }
 
+export async function sendOtp(phone: string): Promise<SendOtpResponse> {
+  const { data } = await api.post<SendOtpResponse>(
+    "api/Auth/send-otp",
+    { phone },
+    { _skipAuth: true } as Record<string, unknown>
+  );
+  return data;
+}
+
+export async function registerPhone(
+  phone: string,
+  password: string,
+  otp: string
+): Promise<RegisterPhoneResponse> {
+  const { data } = await api.post<RegisterPhoneResponse>(
+    "api/Auth/register-phone",
+    { phone, password, otp },
+    { _skipAuth: true } as Record<string, unknown>
+  );
+  return data;
+}
+
 /**
  * Lưu token sau đăng nhập (localStorage)
  */
@@ -85,6 +130,29 @@ export function clearTokens(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  window.localStorage.removeItem(USER_INFO_KEY);
+}
+
+/**
+ * Lưu thông tin user (dob, name, accountId, id) vào localStorage
+ */
+export function setUserInfo(userInfo: UserInfo): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo));
+}
+
+/**
+ * Lấy thông tin user từ localStorage
+ */
+export function getUserInfo(): UserInfo | null {
+  if (typeof window === "undefined") return null;
+  const data = window.localStorage.getItem(USER_INFO_KEY);
+  if (!data) return null;
+  try {
+    return JSON.parse(data) as UserInfo;
+  } catch {
+    return null;
+  }
 }
 
 export function dispatchSessionExpired(): void {

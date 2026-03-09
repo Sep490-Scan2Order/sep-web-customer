@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Info, MapPin } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Banknote, BellRing, Home, Landmark, MapPin, Pencil, ReceiptText, Search, Star } from "lucide-react";
 import { MainLayout } from "@/layouts";
 import type {
   MenuLayoutConfig,
@@ -11,6 +12,12 @@ import type {
 } from "@/types";
 import { ROUTES } from "@/routes";
 import { FALLBACK_RESTAURANT_IMAGE } from "@/lib/constants";
+import {
+  AUTH_SESSION_EXPIRED_EVENT,
+  getAccessToken,
+  getUserInfo,
+  isTokenExpired,
+} from "@/services";
 import {
   getRestaurantMenuFromTemplate,
   parseMenuLayoutConfig,
@@ -22,6 +29,47 @@ import OrderSummaryBar from "./components/OrderSummaryBar";
 
 interface RestaurantDetailViewProps {
   restaurant: RestaurantSlugResponseData;
+  initialMenuOpened?: boolean;
+  menuOnly?: boolean;
+}
+
+function getTimeBasedGreeting(date: Date): string {
+  const hour = date.getHours();
+  if (hour < 11) return "Chào buổi sáng";
+  if (hour < 14) return "Chào buổi trưa";
+  if (hour < 18) return "Chào buổi chiều";
+  return "Chào buổi tối";
+}
+
+type JwtPayload = {
+  exp?: number;
+  name?: string;
+  fullName?: string;
+  unique_name?: string;
+  preferred_username?: string;
+  given_name?: string;
+};
+
+function getDisplayNameFromToken(token: string): string | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padding = "===".slice(0, (4 - (base64.length % 4)) % 4);
+    const json = atob(base64 + padding);
+    const payload = JSON.parse(json) as JwtPayload;
+
+    return (
+      payload.fullName ||
+      payload.name ||
+      payload.unique_name ||
+      payload.preferred_username ||
+      payload.given_name ||
+      null
+    );
+  } catch {
+    return null;
+  }
 }
 
 function buildDirectionsUrl(r: RestaurantSlugResponseData): string {
@@ -39,7 +87,10 @@ function buildDirectionsUrl(r: RestaurantSlugResponseData): string {
 
 export default function RestaurantDetailView({
   restaurant: r,
+  initialMenuOpened = false,
+  menuOnly = false,
 }: RestaurantDetailViewProps) {
+  const router = useRouter();
   const [infoOpen, setInfoOpen] = useState(false);
   const [coverSrc, setCoverSrc] = useState(r.image || FALLBACK_RESTAURANT_IMAGE);
   const [menuTemplateData, setMenuTemplateData] =
@@ -53,12 +104,21 @@ export default function RestaurantDetailView({
   const [layoutConfig, setLayoutConfig] = useState<MenuLayoutConfig | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedDishes, setSelectedDishes] = useState<Record<string, number>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [menuOpened] = useState(initialMenuOpened);
+  const [now, setNow] = useState<Date>(new Date());
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | null>(null);
 
   useEffect(() => {
     setCoverSrc(r.image || FALLBACK_RESTAURANT_IMAGE);
   }, [r.image]);
 
   useEffect(() => {
+    if (!menuOpened) return;
+
     let isCancelled = false;
 
     async function loadMenuTemplate() {
@@ -96,7 +156,49 @@ export default function RestaurantDetailView({
     return () => {
       isCancelled = true;
     };
-  }, [r.id]);
+  }, [r.id, menuOpened]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 60_000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncAuth = () => {
+      const token = getAccessToken();
+      if (!token || isTokenExpired(token)) {
+        setIsLoggedIn(false);
+        setDisplayName(null);
+        return;
+      }
+
+      setIsLoggedIn(true);
+      // Lấy tên từ userInfo trong localStorage
+      const userInfo = getUserInfo();
+      setDisplayName(userInfo?.name || getDisplayNameFromToken(token));
+    };
+
+    syncAuth();
+
+    const onStorage = () => syncAuth();
+    const onSessionExpired = () => {
+      setIsLoggedIn(false);
+      setDisplayName(null);
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
+    };
+  }, []);
 
   const handleToggleDish = (dishId: string) => {
     setSelectedDishes((prev) => {
@@ -126,131 +228,246 @@ export default function RestaurantDetailView({
   const isOpened = r.isOpened;
   const statusLabel = isOpened ? "Đang mở cửa" : "Đã đóng cửa";
   const statusDot = isOpened ? "🟢" : "🔴";
+  const timeGreeting = getTimeBasedGreeting(now);
+  const greetingText = isLoggedIn
+    ? `${timeGreeting}, ${displayName || "Khách hàng"}`
+    : `${timeGreeting}, Customers`;
+
+  const handleViewMenu = () => {
+    router.push(`${ROUTES.MENU}?restaurant=${r.slug}`);
+  };
 
   return (
-    <MainLayout>
-      <div className="min-h-screen" style={{ backgroundColor: "#FFFFFF" }}>
-        {/* Canvas container - responsive */}
-        <div className="mx-auto w-full max-w-6xl">
-          {/* Header Slot: responsive height and margins */}
-          <header
-            className="relative overflow-hidden bg-slate-200"
-            style={{
-              marginLeft: "clamp(12px, 2vw, 24px)",
-              marginRight: "clamp(12px, 2vw, 24px)",
-              marginTop: "clamp(12px, 2vw, 24px)",
-              height: "clamp(80px, 25vw, 90px)",
-              aspectRatio: "auto",
-            }}
-          >
-            <img
-              src={coverSrc}
-              alt={r.restaurantName}
-              className="h-full w-full object-cover"
-              onError={() => setCoverSrc(FALLBACK_RESTAURANT_IMAGE)}
+    <MainLayout hideHeader={menuOnly} hideFooter>
+      {menuOnly ? (
+        <div className="min-h-screen px-2 sm:px-4 lg:px-6">
+          <div className="mx-auto w-full max-w-5xl">
+            <div className="sticky top-0 z-20 mb-2 bg-white/90 px-2 pb-2 pt-1 backdrop-blur-sm">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={ROUTES.RESTAURANT_SLUG(r.slug)}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-orange-200 bg-white text-orange-500 shadow-sm hover:bg-orange-50"
+                  aria-label="Trang chủ"
+                >
+                  <Home className="h-4 w-4" />
+                </Link>
+                <label className="relative block flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="What do you want to find?"
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-orange-300"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <MenuSection
+              menuData={menuData}
+              menuTemplateData={menuTemplateData}
+              layoutConfig={layoutConfig}
+              activeCategory={activeCategory}
+              setActiveCategory={setActiveCategory}
+              selectedDishes={selectedDishes}
+              onToggleDish={handleToggleDish}
+              onQuantityChange={handleQuantityChange}
+              isMenuLoading={isMenuLoading}
+              menuError={menuError}
+              searchQuery={searchQuery}
+              menuOnly
             />
-            <div className="absolute inset-0 bg-black/20" />
-            <div className="absolute left-0 right-0 top-0 p-2 sm:p-4">
-              <Link
-                href={ROUTES.HOME}
-                className="inline-flex items-center gap-2 rounded-full bg-white/95 px-2 py-1 text-xs font-medium text-slate-800 shadow-sm backdrop-blur-sm hover:bg-white sm:px-3 sm:py-2 sm:text-sm"
+          </div>
+        </div>
+      ) : (
+      <div className="min-h-screen bg-[#ECECEC] px-3 py-4 sm:px-4 sm:py-6 lg:px-6">
+        <div className="mx-auto w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 lg:p-5">
+          <header>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  
+                  <h1 className="text-xl font-bold uppercase text-slate-800">{r.restaurantName}</h1>
+                </div>
+                {r.address && (
+                  <p className="mt-2 flex items-center gap-1 text-sm text-slate-600">
+                    <MapPin className="h-4 w-4 text-slate-400" />
+                    <span>{r.address}</span>
+                  </p>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-600"
               >
-                <ArrowLeft className="h-3 w-3 sm:h-4 sm:w-4" />
-                Trở về
-              </Link>
+                VN
+              </button>
             </div>
           </header>
 
-          {/* Info Section - responsive padding and margins */}
-          <section
-            className="border-b border-slate-200 bg-white px-3 pb-3 pt-3 sm:px-4 sm:pb-4 sm:pt-5"
-            style={{
-              marginLeft: "clamp(12px, 2vw, 24px)",
-              marginRight: "clamp(12px, 2vw, 24px)",
-            }}
-          >
-            <h1 className="text-lg font-bold text-slate-900 sm:text-xl md:text-2xl">
-              {r.restaurantName}
-            </h1>
-            {r.description && (
-              <p className="mt-1 text-xs text-slate-600 sm:text-sm">{r.description}</p>
-            )}
-            {r.address && <p className="mt-1 text-xs text-slate-500 sm:text-sm">{r.address}</p>}
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs sm:mt-3 sm:gap-3 sm:text-sm">
-              {distanceText && (
-                <span className="text-slate-500">{distanceText}</span>
+          <section className="mt-3 overflow-hidden rounded-2xl border border-amber-100 bg-amber-50">
+            <img
+              src={coverSrc}
+              alt={r.restaurantName}
+              className="h-44 w-full object-cover"
+              onError={() => setCoverSrc(FALLBACK_RESTAURANT_IMAGE)}
+            />
+          </section>
+
+          <section className="mt-3 rounded-xl bg-white p-3">
+            <p className="text-[29px] leading-none text-slate-300">..</p>
+            <div className="flex items-center justify-between">
+              <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-800">
+                {greetingText}
+              </h2>
+              {isLoggedIn && (
+                <Link
+                  href={ROUTES.PROFILE}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-800"
+                  aria-label="Chỉnh sửa thông tin"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Link>
               )}
-              <span className="font-medium text-slate-700">
-                {statusDot} {statusLabel}
-              </span>
+            </div>
+            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+              {distanceText && <span>{distanceText}</span>}
+              <span>{statusDot} {statusLabel}</span>
             </div>
           </section>
 
-          {/* Action buttons - responsive */}
-          <section
-            className="flex flex-col gap-2 border-b border-slate-200 bg-white px-3 py-2 sm:flex-row sm:gap-3 sm:px-4 sm:py-3"
-            style={{
-              marginLeft: "clamp(12px, 2vw, 24px)",
-              marginRight: "clamp(12px, 2vw, 24px)",
-            }}
-          >
+          {!isLoggedIn && (
+            <section className="mt-2 rounded-xl border border-blue-100 bg-blue-50 p-3">
+              <p className="text-sm font-semibold text-blue-700">Hãy nhập số điện thoại để lưu những quán yêu thích</p>
+            </section>
+          )}
+
+          <section className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <button
+              type="button"
+              onClick={() => setShowPaymentMethod(true)}
+              className="rounded-xl border border-slate-200 bg-[#F2EFEA] p-3 text-left text-xs font-semibold text-slate-700"
+            >
+              <ReceiptText className="mb-1 h-4 w-4 text-slate-600" />
+              <span>Yêu cầu tính tiền</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInfoOpen(true)}
+              className="rounded-xl border border-slate-200 bg-[#E7F3F2] p-3 text-left text-xs font-semibold text-slate-700"
+            >
+              <BellRing className="mb-1 h-4 w-4 text-slate-600" />
+              <span>Gọi phục vụ</span>
+            </button>
             <a
               href={buildDirectionsUrl(r)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-slate-50 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 sm:gap-2 sm:rounded-xl sm:py-2.5 sm:text-sm"
+              className="rounded-xl border border-slate-200 bg-[#F4F0E3] p-3 text-left text-xs font-semibold text-slate-700"
             >
-              <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-              Chỉ đường
+              <Star className="mb-1 h-4 w-4 text-slate-600" />
+              <span>Góp ý</span>
             </a>
+          </section>
+
+          <section className="mt-3">
             <button
               type="button"
-              onClick={() => setInfoOpen(true)}
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-slate-300 bg-slate-50 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 sm:gap-2 sm:rounded-xl sm:py-2.5 sm:text-sm"
+              onClick={handleViewMenu}
+              className="flex w-full items-center justify-between rounded-2xl bg-gradient-to-r from-[#F58A1F] to-[#F2CE59] px-4 py-4 text-left text-lg font-bold text-white shadow-sm transition hover:brightness-95 sm:py-5 sm:text-2xl"
             >
-              <Info className="h-3 w-3 sm:h-4 sm:w-4" />
-              Thông tin quán
+              <span>View Menu - Order food</span>
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/35 text-lg">›</span>
             </button>
           </section>
 
-          <MenuSection
-            menuData={menuData}
-            menuTemplateData={menuTemplateData}
-            layoutConfig={layoutConfig}
-            activeCategory={activeCategory}
-            setActiveCategory={setActiveCategory}
-            selectedDishes={selectedDishes}
-            onToggleDish={handleToggleDish}
-            onQuantityChange={handleQuantityChange}
-            isMenuLoading={isMenuLoading}
-            menuError={menuError}
-          />
-
-          {/* Footer Slot: responsive */}
-          <footer
-            style={{
-              marginLeft: "clamp(12px, 2vw, 24px)",
-              marginRight: "clamp(12px, 2vw, 24px)",
-              marginTop: "0px",
-              minHeight: "clamp(60px, 15vw, 80px)",
-              backgroundColor: "#FFFFFF",
-              padding: "clamp(8px, 2vw, 16px)",
-              borderTop: "1px solid #e2e8f0",
-            }}
-            className="flex items-center justify-center text-center text-xs text-slate-500 sm:text-sm"
-          >
-            <p>© 2026 Nhà hàng. Tất cả quyền được bảo lưu.</p>
+          <footer className="mt-6 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
+            <p>Powered by scan2order.io.vn</p>
           </footer>
+
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            {menuOpened && (
+              <MenuSection
+                menuData={menuData}
+                menuTemplateData={menuTemplateData}
+                layoutConfig={layoutConfig}
+                activeCategory={activeCategory}
+                setActiveCategory={setActiveCategory}
+                selectedDishes={selectedDishes}
+                onToggleDish={handleToggleDish}
+                onQuantityChange={handleQuantityChange}
+                isMenuLoading={isMenuLoading}
+                menuError={menuError}
+              />
+            )}
+          </div>
         </div>
       </div>
+      )}
 
-      <RestaurantInfoModal
-        open={infoOpen}
-        onClose={() => setInfoOpen(false)}
-        restaurant={r}
-        statusDot={statusDot}
-        statusLabel={statusLabel}
-      />
+      {!menuOnly && (
+        <RestaurantInfoModal
+          open={infoOpen}
+          onClose={() => setInfoOpen(false)}
+          restaurant={r}
+          statusDot={statusDot}
+          statusLabel={statusLabel}
+        />
+      )}
+
+      {showPaymentMethod && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-3 sm:px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl sm:p-5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-800">Bạn muốn thanh toán bằng?</p>
+              <button
+                type="button"
+                onClick={() => setShowPaymentMethod(false)}
+                className="rounded-full px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+              >
+                Đóng
+              </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("cash")}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                  paymentMethod === "cash"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <Banknote className="h-4 w-4" />
+                Tiền mặt
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod("transfer")}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+                  paymentMethod === "transfer"
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <Landmark className="h-4 w-4" />
+                Chuyển khoản
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowPaymentMethod(false)}
+              disabled={!paymentMethod}
+              className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+            >
+              Xác nhận
+            </button>
+          </div>
+        </div>
+      )}
 
       <OrderSummaryBar
         hasSelectedDishes={hasSelectedDishes}

@@ -13,6 +13,8 @@ interface MenuSectionProps {
   onQuantityChange: (dishId: string, delta: number) => void;
   isMenuLoading: boolean;
   menuError: string | null;
+  searchQuery?: string;
+  menuOnly?: boolean;
 }
 
 export default function MenuSection({
@@ -26,16 +28,28 @@ export default function MenuSection({
   onQuantityChange,
   isMenuLoading,
   menuError,
+  searchQuery = "",
+  menuOnly = false,
 }: MenuSectionProps) {
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const matchesSearch = (name: string, description?: string) => {
+    if (!normalizedQuery) return true;
+    return `${name} ${description || ""}`.toLowerCase().includes(normalizedQuery);
+  };
+
   const activeSection = menuData.sections.find((s) => s.id === activeCategory);
+  const activeSectionDishes = activeSection?.dishes.filter((dish) =>
+    matchesSearch(dish.name, dish.description)
+  ) || [];
+  const filteredUngroupedDishes = menuData.ungroupedDishes.filter((dish) =>
+    matchesSearch(dish.name, dish.description)
+  );
 
   return (
     <section
       style={{
-        marginLeft: "clamp(12px, 2vw, 24px)",
-        marginRight: "clamp(12px, 2vw, 24px)",
         marginTop: "0px",
-        minHeight: "clamp(400px, 60vh, 550px)",
+        minHeight: menuOnly ? "calc(100vh - 52px)" : "clamp(400px, 60vh, 550px)",
         backgroundColor: layoutConfig?.canvas?.backgroundColor || "#FFFFFF",
         backgroundImage:
           layoutConfig?.canvas?.backgroundMode === "image" && layoutConfig?.canvas?.backgroundImageUrl
@@ -43,16 +57,20 @@ export default function MenuSection({
             : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        padding: "clamp(12px, 3vw, 24px)",
+        backgroundRepeat: "no-repeat",
+        padding: menuOnly ? "clamp(8px, 2vw, 12px)" : "clamp(12px, 3vw, 24px)",
+        paddingBottom: menuOnly ? "96px" : "clamp(12px, 3vw, 24px)",
         fontFamily: menuTemplateData?.menuTemplate?.fontFamily || "inherit",
       }}
     >
-      <h2
-        className="mb-2 text-base font-bold sm:mb-4 md:text-lg"
-        style={{ color: menuTemplateData?.menuTemplate?.themeColor || "#1e293b" }}
-      >
-        Thực đơn
-      </h2>
+      {!menuOnly && (
+        <h2
+          className="mb-2 text-base font-bold sm:mb-4 md:text-lg"
+          style={{ color: menuTemplateData?.menuTemplate?.themeColor || "#1e293b" }}
+        >
+          Thực đơn
+        </h2>
+      )}
 
       {isMenuLoading && (
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-center text-xs text-slate-500 sm:rounded-xl sm:p-6 sm:text-sm">
@@ -74,7 +92,7 @@ export default function MenuSection({
 
       {!isMenuLoading && !menuError && (menuData.sections.length > 0 || menuData.ungroupedDishes.length > 0) && (
         <div className="space-y-2 sm:space-y-4">
-          {menuTemplateData && (
+          {!menuOnly && menuTemplateData && (
             <div className="rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-4">
               <h3 className="text-sm font-semibold text-slate-900 sm:text-base">
                 {menuTemplateData.menuTemplate.templateName}
@@ -109,7 +127,9 @@ export default function MenuSection({
                       }
                     >
                       {section.name}
-                      <span className="ml-1 text-xs opacity-75 sm:ml-1.5">({section.dishes.length})</span>
+                      <span className="ml-1 text-xs opacity-75 sm:ml-1.5">
+                        ({section.dishes.filter((dish) => matchesSearch(dish.name, dish.description)).length})
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -119,9 +139,9 @@ export default function MenuSection({
                 <div className="rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-4">
                   <h4 className="text-sm font-semibold text-slate-900 sm:text-base">{activeSection.name}</h4>
 
-                  {activeSection.dishes.length > 0 ? (
+                  {activeSectionDishes.length > 0 ? (
                     <div className="mt-2 space-y-2 sm:mt-3 sm:space-y-3">
-                      {activeSection.dishes.map((dish) => (
+                      {activeSectionDishes.map((dish) => (
                         <DishItemCard
                           key={dish.id}
                           dish={dish}
@@ -133,19 +153,21 @@ export default function MenuSection({
                       ))}
                     </div>
                   ) : (
-                    <p className="mt-2 text-xs text-slate-500 sm:mt-2">Danh mục này chưa có món.</p>
+                    <p className="mt-2 text-xs text-slate-500 sm:mt-2">
+                      {normalizedQuery ? "Không tìm thấy món phù hợp." : "Danh mục này chưa có món."}
+                    </p>
                   )}
                 </div>
               )}
             </div>
           )}
 
-          {menuData.ungroupedDishes.length > 0 && (
+          {filteredUngroupedDishes.length > 0 && (
             <div className="space-y-2 sm:space-y-4">
               <div className="rounded-lg border border-slate-200 bg-white p-3 sm:rounded-xl sm:p-4">
                 <h4 className="text-sm font-semibold text-slate-900 sm:text-base">Món chưa phân loại</h4>
                 <div className="mt-2 space-y-2 sm:mt-3 sm:space-y-3">
-                  {menuData.ungroupedDishes.map((dish) => (
+                  {filteredUngroupedDishes.map((dish) => (
                     <DishItemCard
                       key={dish.id}
                       dish={dish}

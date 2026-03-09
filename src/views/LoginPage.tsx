@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Phone, Lock, ArrowRight } from "lucide-react";
 import logoDefault from "@/assets/images/logo/logo_default.png";
-import { loginPhone, setTokens } from "@/services";
+import { loginPhone, setTokens, setUserInfo } from "@/services";
 import { ROUTES } from "@/routes";
 
 export function LoginPage() {
@@ -22,6 +22,9 @@ export function LoginPage() {
       const res = await loginPhone(phone, password);
       if (res.isSuccess && res.data?.accessToken) {
         setTokens(res.data.accessToken, res.data.refreshToken ?? "");
+        if (res.data.userInfo) {
+          setUserInfo(res.data.userInfo);
+        }
         window.location.href = ROUTES.HOME;
         return;
       }

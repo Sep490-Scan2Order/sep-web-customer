@@ -4,8 +4,6 @@ import type {
 	MenuLayoutConfig,
 	MenuRestaurantTemplateResponse,
 	MenuRestaurantTemplateResponseData,
-	RestaurantSlugResponse,
-	RestaurantSlugResponseData,
 } from "@/types";
 
 export interface MenuCategoryItem {
