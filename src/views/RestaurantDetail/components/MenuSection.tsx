@@ -32,6 +32,8 @@ export default function MenuSection({
   menuOnly = false,
 }: MenuSectionProps) {
   const normalizedQuery = searchQuery.trim().toLowerCase();
+  const resolvedBackgroundImageUrl =
+    menuTemplateData?.menuTemplate?.backgroundImageUrl || layoutConfig?.canvas?.backgroundImageUrl;
   const matchesSearch = (name: string, description?: string) => {
     if (!normalizedQuery) return true;
     return `${name} ${description || ""}`.toLowerCase().includes(normalizedQuery);
@@ -51,10 +53,7 @@ export default function MenuSection({
         marginTop: "0px",
         minHeight: menuOnly ? "calc(100vh - 52px)" : "clamp(400px, 60vh, 550px)",
         backgroundColor: layoutConfig?.canvas?.backgroundColor || "#FFFFFF",
-        backgroundImage:
-          layoutConfig?.canvas?.backgroundMode === "image" && layoutConfig?.canvas?.backgroundImageUrl
-            ? `url('${layoutConfig.canvas.backgroundImageUrl}')`
-            : undefined,
+        backgroundImage: resolvedBackgroundImageUrl ? `url('${resolvedBackgroundImageUrl}')` : undefined,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",

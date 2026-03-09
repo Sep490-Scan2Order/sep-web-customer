@@ -58,6 +58,7 @@ export interface MenuTemplate {
   layoutConfigJson: string;
   themeColor: string;
   fontFamily: string;
+  backgroundImageUrl: string;
 }
 
 export interface MenuRestaurantTemplateResponse {
