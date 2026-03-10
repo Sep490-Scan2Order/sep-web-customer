@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
+import { ToastContainer } from "react-toastify";
+import { Suspense } from "react";
 import "./globals.css";
+import "./nprogress.css";
 import "react-toastify/dist/ReactToastify.css";
+import { NavigationProgress } from "@/components/providers/NavigationProgress";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin", "vietnamese"],
 });
 
 export const metadata: Metadata = {
   title: "Scan To Order",
-  description: "Nền tảng đặt món tại nhà hàng với công nghệ quét mã QR. Scan. Order. Enjoy.",
+  description:
+    "Nền tảng đặt món tại nhà hàng với công nghệ quét mã QR. Scan. Order. Enjoy.",
   icons: {
     icon: "/favicon.ico",
   },
@@ -29,9 +29,24 @@ export default function RootLayout({
   return (
     <html lang="vi" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-slate-50 antialiased`}
+        className={`${inter.variable} min-h-screen bg-slate-50 antialiased`}
         suppressHydrationWarning
       >
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+        />
         {children}
       </body>
     </html>

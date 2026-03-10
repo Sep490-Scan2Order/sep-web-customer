@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MapPin, Phone, Clock, Star, Navigation, Calendar, Users } from "lucide-react";
-import { MainLayout } from "@/layouts";
+import { MainLayout } from "@/components/ui/common";
 import type { RestaurantSlugResponseData } from "@/types";
-import { FALLBACK_RESTAURANT_IMAGE } from "@/lib/constants";
-import { ROUTES } from "@/routes";
+import { FALLBACK_RESTAURANT_IMAGE } from "@/constants";
+import { ROUTES } from "@/constants/routes";
 
 interface RestaurantInfoViewProps {
   restaurant: RestaurantSlugResponseData;

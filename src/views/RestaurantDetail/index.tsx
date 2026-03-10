@@ -3,21 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, BellRing, Home, Landmark, MapPin, Pencil, ReceiptText, Search, Star } from "lucide-react";
-import { MainLayout } from "@/layouts";
+import { Banknote, BellRing, Home, Landmark, MapPin, ReceiptText, Search, Star } from "lucide-react";
+import { MainLayout } from "@/components/ui/common";
 import type {
   MenuLayoutConfig,
   MenuRestaurantTemplateResponseData,
   RestaurantSlugResponseData,
 } from "@/types";
-import { ROUTES } from "@/routes";
-import { FALLBACK_RESTAURANT_IMAGE } from "@/lib/constants";
-import {
-  AUTH_SESSION_EXPIRED_EVENT,
-  getAccessToken,
-  getUserInfo,
-  isTokenExpired,
-} from "@/services";
+import { ROUTES } from "@/constants/routes";
+import { FALLBACK_RESTAURANT_IMAGE } from "@/constants";
 import {
   getRestaurantMenuFromTemplate,
   parseMenuLayoutConfig,
@@ -39,37 +33,6 @@ function getTimeBasedGreeting(date: Date): string {
   if (hour < 14) return "Chào buổi trưa";
   if (hour < 18) return "Chào buổi chiều";
   return "Chào buổi tối";
-}
-
-type JwtPayload = {
-  exp?: number;
-  name?: string;
-  fullName?: string;
-  unique_name?: string;
-  preferred_username?: string;
-  given_name?: string;
-};
-
-function getDisplayNameFromToken(token: string): string | null {
-  try {
-    const parts = token.split(".");
-    if (parts.length !== 3) return null;
-    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
-    const padding = "===".slice(0, (4 - (base64.length % 4)) % 4);
-    const json = atob(base64 + padding);
-    const payload = JSON.parse(json) as JwtPayload;
-
-    return (
-      payload.fullName ||
-      payload.name ||
-      payload.unique_name ||
-      payload.preferred_username ||
-      payload.given_name ||
-      null
-    );
-  } catch {
-    return null;
-  }
 }
 
 function buildDirectionsUrl(r: RestaurantSlugResponseData): string {
@@ -107,8 +70,6 @@ export default function RestaurantDetailView({
   const [searchQuery, setSearchQuery] = useState("");
   const [menuOpened] = useState(initialMenuOpened);
   const [now, setNow] = useState<Date>(new Date());
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [displayName, setDisplayName] = useState<string | null>(null);
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | null>(null);
 
@@ -168,38 +129,6 @@ export default function RestaurantDetailView({
     };
   }, []);
 
-  useEffect(() => {
-    const syncAuth = () => {
-      const token = getAccessToken();
-      if (!token || isTokenExpired(token)) {
-        setIsLoggedIn(false);
-        setDisplayName(null);
-        return;
-      }
-
-      setIsLoggedIn(true);
-      // Lấy tên từ userInfo trong localStorage
-      const userInfo = getUserInfo();
-      setDisplayName(userInfo?.name || getDisplayNameFromToken(token));
-    };
-
-    syncAuth();
-
-    const onStorage = () => syncAuth();
-    const onSessionExpired = () => {
-      setIsLoggedIn(false);
-      setDisplayName(null);
-    };
-
-    window.addEventListener("storage", onStorage);
-    window.addEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
-
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener(AUTH_SESSION_EXPIRED_EVENT, onSessionExpired);
-    };
-  }, []);
-
   const handleToggleDish = (dishId: string) => {
     setSelectedDishes((prev) => {
       const newSelected = { ...prev };
@@ -229,9 +158,7 @@ export default function RestaurantDetailView({
   const statusLabel = isOpened ? "Đang mở cửa" : "Đã đóng cửa";
   const statusDot = isOpened ? "🟢" : "🔴";
   const timeGreeting = getTimeBasedGreeting(now);
-  const greetingText = isLoggedIn
-    ? `${timeGreeting}, ${displayName || "Khách hàng"}`
-    : `${timeGreeting}, Customers`;
+  const greetingText = `${timeGreeting}, Khách hàng`;
 
   const handleViewMenu = () => {
     router.push(`${ROUTES.MENU}?restaurant=${r.slug}`);
@@ -317,31 +244,14 @@ export default function RestaurantDetailView({
 
           <section className="mt-3 rounded-xl bg-white p-3">
             <p className="text-[29px] leading-none text-slate-300">..</p>
-            <div className="flex items-center justify-between">
-              <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-800">
-                {greetingText}
-              </h2>
-              {isLoggedIn && (
-                <Link
-                  href={ROUTES.PROFILE}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-800"
-                  aria-label="Chỉnh sửa thông tin"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Link>
-              )}
-            </div>
+            <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-800">
+              {greetingText}
+            </h2>
             <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
               {distanceText && <span>{distanceText}</span>}
               <span>{statusDot} {statusLabel}</span>
             </div>
           </section>
-
-          {!isLoggedIn && (
-            <section className="mt-2 rounded-xl border border-blue-100 bg-blue-50 p-3">
-              <p className="text-sm font-semibold text-blue-700">Hãy nhập số điện thoại để lưu những quán yêu thích</p>
-            </section>
-          )}
 
           <section className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <button

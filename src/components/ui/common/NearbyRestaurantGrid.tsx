@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { MapPin } from "lucide-react";
-import { RestaurantCard } from "@/components/RestaurantCard";
+import { RestaurantCard } from "./RestaurantCard";
 import { getNearbyRestaurants } from "@/services/restaurantService";
 import type { Restaurant } from "@/types";
 
@@ -45,7 +45,9 @@ function setCachedPosition(lat: number, lng: number): void {
   }
 }
 
-async function geocodeAddress(address: string): Promise<{ lat: number; lon: number } | null> {
+async function geocodeAddress(
+  address: string
+): Promise<{ lat: number; lon: number } | null> {
   const res = await fetch(
     `${NOMINATIM_URL}?q=${encodeURIComponent(address)}&format=json&limit=1`,
     { headers: { "Accept-Language": "vi" } }
@@ -150,7 +152,7 @@ export function NearbyRestaurantGrid() {
         setShowAddressInput(false);
         setAddressValue("");
       });
-    } catch (err) {
+    } catch {
       setError("Không tìm được nhà hàng theo địa chỉ này.");
     } finally {
       setAddressLoading(false);
@@ -215,7 +217,7 @@ export function NearbyRestaurantGrid() {
               <button
                 type="submit"
                 disabled={addressLoading || !addressValue.trim()}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 hover:bg-emerald-700"
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
               >
                 {addressLoading ? "Đang tìm..." : "Tìm nhà hàng"}
               </button>
@@ -231,9 +233,7 @@ export function NearbyRestaurantGrid() {
                 Hủy
               </button>
             </div>
-            {error && (
-              <p className="text-left text-sm text-amber-600">{error}</p>
-            )}
+            {error && <p className="text-left text-sm text-amber-600">{error}</p>}
           </form>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { api } from "@/axios";
+import { api } from "@/services/apiClient";
 import type {
 	GroupedMenuResponse,
 	MenuLayoutConfig,

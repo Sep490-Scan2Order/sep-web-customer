@@ -1,7 +1,7 @@
 "use client";
 
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
+import { Header } from "../Header";
+import { Footer } from "../Footer";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -9,7 +9,11 @@ interface MainLayoutProps {
   hideFooter?: boolean;
 }
 
-export function MainLayout({ children, hideHeader = false, hideFooter = false }: MainLayoutProps) {
+export function MainLayout({
+  children,
+  hideHeader = false,
+  hideFooter = false,
+}: MainLayoutProps) {
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       {!hideHeader && <Header />}

@@ -1,6 +1,5 @@
-﻿import { api } from "@/axios";
-import { mockRestaurants } from "@/lib/mockData";
-import { extractRestaurantPath } from "@/routes";
+import { api } from "@/services/apiClient";
+import { extractRestaurantPath } from "@/constants/routes";
 import type {
   Restaurant,
   RestaurantSlugResponse,
@@ -163,8 +162,4 @@ export async function getRestaurantsAll(
     };
   }
   return data.data;
-}
-
-export async function getRestaurants(): Promise<Restaurant[]> {
-  return mockRestaurants;
 }

@@ -1,18 +1,5 @@
 import axios from "axios";
-
-/**
- * Base URL for API - supports both client (relative) and server (absolute)
- */
-function getApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  // Server-side cần URL tuyệt đối
-  if (typeof window === "undefined") {
-    return `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api`;
-  }
-  return "/api";
-}
+import { API_BASE_URL } from "@/constants/api";
 
 function getHttpsAgent(): import("https").Agent | undefined {
   if (typeof window !== "undefined") return undefined;
@@ -31,7 +18,7 @@ function getHttpsAgent(): import("https").Agent | undefined {
  * In development, server-side requests accept self-signed certificates (e.g. local HTTPS API).
  */
 export const api = axios.create({
-  baseURL: getApiBaseUrl(),
+  baseURL: API_BASE_URL,
   timeout: 30000,
   headers: {
     "Content-Type": "application/json",

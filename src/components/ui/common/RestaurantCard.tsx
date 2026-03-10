@@ -1,12 +1,12 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { Restaurant } from "@/types";
-import { cn } from "@/lib/utils";
-import { ROUTES } from "@/routes";
-import { FALLBACK_RESTAURANT_IMAGE } from "@/lib/constants";
+import { cn } from "@/utils";
+import { ROUTES } from "@/constants/routes";
+import { FALLBACK_RESTAURANT_IMAGE } from "@/constants";
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
@@ -24,8 +24,7 @@ export function RestaurantCard({ restaurant, className }: RestaurantCardProps) {
     <Link
       href={ROUTES.RESTAURANT(restaurant.id)}
       className={cn(
-        "group flex flex-col overflow-hidden rounded-2xl bg-white shadow-md transition-all duration-300 hover:shadow-xl hover:-translate-y-1",
-        "border border-slate-100",
+        "group flex flex-col overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl",
         className
       )}
     >

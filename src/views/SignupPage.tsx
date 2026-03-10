@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, KeyRound, Lock, Phone } from "lucide-react";
 import { registerPhone, sendOtp, setTokens } from "@/services";
-import { ROUTES } from "@/routes";
+import { ROUTES } from "@/constants/routes";
 
 type SignupStep = "phone" | "verify";
 
@@ -183,10 +183,7 @@ export function SignupPage() {
         )}
 
         <p className="mt-5 text-center text-sm text-slate-600">
-          Đã có tài khoản?{" "}
-          <Link href={ROUTES.LOGIN} className="font-semibold text-emerald-600 hover:underline">
-            Đăng nhập
-          </Link>
+          Đã đăng ký? Vui lòng liên hệ nhà hàng để đặt món.
         </p>
       </div>
     </div>

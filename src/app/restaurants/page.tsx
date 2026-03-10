@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { MainLayout } from "@/layouts";
-import { AllRestaurantsList } from "@/components/AllRestaurantsList";
-import { ROUTES } from "@/routes";
 import { ArrowLeft } from "lucide-react";
+import { MainLayout, AllRestaurantsList } from "@/components/ui/common";
+import { ROUTES } from "@/constants/routes";
 
 export default function RestaurantsPage() {
   return (

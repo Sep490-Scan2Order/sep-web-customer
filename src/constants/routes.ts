@@ -1,14 +1,10 @@
-﻿/**
+/**
  * Route constants and configuration for S2O
  */
 export const ROUTES = {
   HOME: "/",
   HISTORY: "/history",
-  PROFILE: "/profile",
-  LOGIN: "/login",
   SIGNUP: "/signup",
-  VOUCHER: "/voucher",
-  MY_VOUCHERS: "/my-vouchers",
   MENU: "/menu",
   RESTAURANTS: "/restaurants",
   RESTAURANT: (id: string | number) => `/restaurant/${id}`,
@@ -24,7 +20,6 @@ export function extractRestaurantPath(profileUrl: string | null): string | null 
     const url = new URL(profileUrl);
     return url.pathname;
   } catch {
-    // If not a valid URL, assume it is already a path
-    return profileUrl.startsWith('/') ? profileUrl : `/${profileUrl}`;
+    return profileUrl.startsWith("/") ? profileUrl : `/${profileUrl}`;
   }
 }

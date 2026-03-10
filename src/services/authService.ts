@@ -1,27 +1,10 @@
-import { api } from "@/axios";
+import { api } from "@/services/apiClient";
 
 const ACCESS_TOKEN_KEY = "s2o_access_token";
 const REFRESH_TOKEN_KEY = "s2o_refresh_token";
 const USER_INFO_KEY = "s2o_user_info";
 
 export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
-
-export interface UserInfo {
-  dob: string;
-  name: string;
-  accountId: string;
-  id: string;
-}
-
-export interface LoginPhoneResponse {
-  isSuccess: boolean;
-  message: string;
-  data: {
-    accessToken: string;
-    refreshToken: string;
-    userInfo?: UserInfo;
-  };
-}
 
 export interface SendOtpResponse {
   isSuccess: boolean;
@@ -57,29 +40,6 @@ export function isTokenExpired(token: string, bufferSeconds = 30): boolean {
   const payload = decodeJwtPayload(token);
   if (!payload?.exp) return true;
   return payload.exp < Math.floor(Date.now() / 1000) + bufferSeconds;
-}
-
-/**
- * Có phiên đăng nhập hợp lệ (có token và chưa hết hạn, hoặc refresh được)
- */
-export function hasValidAccessToken(): boolean {
-  const token = getAccessToken();
-  if (!token) return false;
-  return !isTokenExpired(token);
-}
-
-/**
- * Đăng nhập bằng SĐT + mật khẩu. POST /api/Auth/login-phone
- */
-export async function loginPhone(
-  phone: string,
-  password: string
-): Promise<LoginPhoneResponse> {
-  const { data } = await api.post<LoginPhoneResponse>("api/Auth/login-phone", {
-    phone,
-    password,
-  });
-  return data;
 }
 
 export async function sendOtp(phone: string): Promise<SendOtpResponse> {
@@ -133,28 +93,6 @@ export function clearTokens(): void {
   window.localStorage.removeItem(USER_INFO_KEY);
 }
 
-/**
- * Lưu thông tin user (dob, name, accountId, id) vào localStorage
- */
-export function setUserInfo(userInfo: UserInfo): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo));
-}
-
-/**
- * Lấy thông tin user từ localStorage
- */
-export function getUserInfo(): UserInfo | null {
-  if (typeof window === "undefined") return null;
-  const data = window.localStorage.getItem(USER_INFO_KEY);
-  if (!data) return null;
-  try {
-    return JSON.parse(data) as UserInfo;
-  } catch {
-    return null;
-  }
-}
-
 export function dispatchSessionExpired(): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent(AUTH_SESSION_EXPIRED_EVENT));
@@ -189,15 +127,5 @@ export async function refreshAccessToken(): Promise<{
     return null;
   } catch {
     return null;
-  }
-}
-
-export async function logout(): Promise<void> {
-  try {
-    await api.post("api/Auth/logout");
-  } catch {
-    // ignore
-  } finally {
-    clearTokens();
   }
 }

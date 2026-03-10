@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { HeroSection } from "@/components/HeroSection";
-import { NearbyRestaurantGrid } from "@/components/NearbyRestaurantGrid";
-import { ROUTES } from "@/routes";
 import { ChevronRight } from "lucide-react";
-
+import { HeroSection, NearbyRestaurantGrid } from "@/components/ui/common";
+import { ROUTES } from "@/constants/routes";
 export function HomePage() {
   return (
     <>
