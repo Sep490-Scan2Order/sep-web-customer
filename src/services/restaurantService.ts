@@ -65,7 +65,7 @@ export async function getNearbyRestaurants(
     }
   );
   return (data.data ?? []).map((d) => ({
-    id: getRestaurantId(d),
+    id: String(d.id),
     renderKey: `nearby-${d.id}`,
     name: d.restaurantName,
     image: d.image || "/placeholder-restaurant.jpg",

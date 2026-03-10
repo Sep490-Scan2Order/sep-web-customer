@@ -238,7 +238,7 @@ export default function RestaurantDetailView({
   };
 
   return (
-    <MainLayout hideHeader={menuOnly} hideFooter>
+    <MainLayout hideHeader hideFooter>
       {menuOnly ? (
         <div className="min-h-screen px-2 sm:px-4 lg:px-6">
           <div className="mx-auto w-full max-w-5xl">

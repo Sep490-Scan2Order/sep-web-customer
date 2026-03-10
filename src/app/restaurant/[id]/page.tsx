@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { getRestaurantById } from "@/services/restaurantService";
-import RestaurantDetailView from "@/views/RestaurantDetail";
+import RestaurantInfoView from "@/views/RestaurantInfo";
 
 interface RestaurantPageProps {
   params: Promise<{ id: string }>;
@@ -18,6 +18,6 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
     notFound();
   }
 
-  // 4. Trả về View (Presentation)
-  return <RestaurantDetailView restaurant={restaurant} />;
+  // 4. Trả về View (Presentation) - Chỉ hiển thị thông tin nhà hàng
+  return <RestaurantInfoView restaurant={restaurant} />;
 }

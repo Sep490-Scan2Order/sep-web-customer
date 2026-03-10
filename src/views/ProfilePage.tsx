@@ -46,7 +46,7 @@ export function ProfilePage() {
         toast.success(response.message || "Cập nhật thông tin thành công!");
         
         // Lưu userInfo mới vào localStorage
-        if (response.data) {F
+        if (response.data) {
           setUserInfo({
             dob: response.data.dob,
             name: response.data.name,
