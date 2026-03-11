@@ -1,36 +1,16 @@
+import { API } from "@/services/api";
 import { api } from "@/services/apiClient";
 import type {
 	GroupedMenuResponse,
+	MenuCategoryItem,
+	MenuDishItem,
 	MenuLayoutConfig,
 	MenuRestaurantTemplateResponse,
 	MenuRestaurantTemplateResponseData,
+	RestaurantMenuData,
+	RestaurantMenuFromTemplateResult,
+	RestaurantMenuSection,
 } from "@/types";
-
-export interface MenuCategoryItem {
-	id: string;
-	name: string;
-}
-
-export interface MenuDishItem {
-	id: string;
-	name: string;
-	price: number | null;
-	description: string;
-	categoryId: string;
-	imageUrl?: string;
-	isSoldOut?: boolean;
-}
-
-export interface RestaurantMenuSection {
-	id: string;
-	name: string;
-	dishes: MenuDishItem[];
-}
-
-export interface RestaurantMenuData {
-	sections: RestaurantMenuSection[];
-	ungroupedDishes: MenuDishItem[];
-}
 
 export async function getMenuRestaurantTemplateByRestaurantId(
 	restaurantId: number
@@ -39,7 +19,7 @@ export async function getMenuRestaurantTemplateByRestaurantId(
 
 	try {
 		const { data } = await api.get<MenuRestaurantTemplateResponse>(
-			`api/MenuRestaurant/${restaurantId}`
+			API.MENU_RESTAURANT.GET_BY_RESTAURANT_ID(restaurantId)
 		);
 		if (data.isSuccess && data.data) return data.data;
 		return null;
@@ -132,10 +112,10 @@ function toSourceCandidates(
 			return [];
 		}
 		if (normalized.includes("CATEGORY")) {
-			return [`api/Category/get-category-by-tenantId/${tenantId}`];
+			return [API.CATEGORY.GET_BY_TENANT_ID(tenantId)];
 		}
 		if (normalized.includes("DISH")) {
-			return [`api/Dish/get-dish-by-tenantId/${tenantId}`];
+			return [API.DISH.GET_BY_TENANT_ID(tenantId)];
 		}
 	}
 	
@@ -143,31 +123,31 @@ function toSourceCandidates(
 	if (normalized === "API.CATEGORY.GET_ALL" || normalized === "API.CATEGORIES.GET_ALL") {
 		if (tenantId) {
 			// Có tenantId → dùng endpoint by tenantId
-			return [`api/Category/get-category-by-tenantId/${tenantId}`];
+			return [API.CATEGORY.GET_BY_TENANT_ID(tenantId)];
 		}
 		// Không có tenantId → fallback endpoint cũ
-		return ["api/Category", "api/Categories", "api/Category/get-all"];
+		return [API.CATEGORY.GET_ALL, API.CATEGORY.GET_ALL_LEGACY, API.CATEGORY.GET_ALL_FALLBACK];
 	}
 	
 	if (normalized === "API.DISHES.GET_ALL" || normalized === "API.DISH.GET_ALL") {
 		if (tenantId) {
 			// Có tenantId → dùng endpoint by tenantId
-			return [`api/Dish/get-dish-by-tenantId/${tenantId}`];
+			return [API.DISH.GET_BY_TENANT_ID(tenantId)];
 		}
 		// Không có tenantId → fallback endpoint cũ
-		return ["api/Dishes", "api/Dish", "api/Dishes/get-all"];
+		return [API.DISH.GET_ALL_LEGACY, API.DISH.GET_ALL, API.DISH.GET_ALL_FALLBACK];
 	}
 	
 	if (!source) {
 		// Default fallback
 		if (tenantId) {
 			return kind === "category"
-				? [`api/Category/get-category-by-tenantId/${tenantId}`]
-				: [`api/Dish/get-dish-by-tenantId/${tenantId}`];
+				? [API.CATEGORY.GET_BY_TENANT_ID(tenantId)]
+				: [API.DISH.GET_BY_TENANT_ID(tenantId)];
 		}
 		return kind === "category"
-			? ["api/Category", "api/Categories"]
-			: ["api/Dishes", "api/Dish"];
+			? [API.CATEGORY.GET_ALL, API.CATEGORY.GET_ALL_LEGACY]
+			: [API.DISH.GET_ALL_LEGACY, API.DISH.GET_ALL];
 	}
 
 	const trimmed = source.trim();
@@ -320,9 +300,9 @@ export async function getRestaurantGroupedMenu(
 	}
 
 	const endpoints = [
-		`api/Restaurant/${restaurantId}/menu`,
-		`api/Menu/restaurant/${restaurantId}`,
-		`api/Dish/by-restaurant/${restaurantId}`,
+		API.RESTAURANT.GET_MENU(restaurantId),
+		API.MENU.GET_BY_RESTAURANT_ID(restaurantId),
+		API.DISH.GET_BY_RESTAURANT_ID(restaurantId),
 	];
 
 	for (const endpoint of endpoints) {
@@ -353,14 +333,6 @@ export async function getRestaurantGroupedMenu(
 	}
 
 	return { sections: [], ungroupedDishes: [] };
-}
-
-/**
- * Kết quả lấy menu từ template
- */
-export interface RestaurantMenuFromTemplateResult {
-	menuData: RestaurantMenuData;
-	templateData: MenuRestaurantTemplateResponseData | null;
 }
 
 /**

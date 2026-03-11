@@ -8,6 +8,7 @@ import { MainLayout } from "@/components/ui/common";
 import type {
   MenuLayoutConfig,
   MenuRestaurantTemplateResponseData,
+  RestaurantMenuData,
   RestaurantSlugResponseData,
 } from "@/types";
 import { ROUTES } from "@/constants/routes";
@@ -15,7 +16,6 @@ import { FALLBACK_RESTAURANT_IMAGE } from "@/constants";
 import {
   getRestaurantMenuFromTemplate,
   parseMenuLayoutConfig,
-  type RestaurantMenuData,
 } from "@/services/menuRestaurantTemplateService";
 import MenuSection from "./components/MenuSection";
 import RestaurantInfoModal from "./components/RestaurantInfoModal";

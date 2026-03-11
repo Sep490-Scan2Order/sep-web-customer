@@ -125,3 +125,105 @@ export interface GroupedMenuResponse {
   errors: unknown;
   timestamp: string;
 }
+
+export interface SendOtpResponse {
+  isSuccess: boolean;
+  message: string;
+}
+
+export interface RegisterPhoneResponse {
+  isSuccess: boolean;
+  message: string;
+  data?: {
+    accessToken?: string;
+    refreshToken?: string;
+  };
+}
+
+export interface NearbyRestaurantDto {
+  id: number;
+  tenantId: string;
+  restaurantName: string;
+  slug?: string;
+  address: string;
+  longitude: number;
+  latitude: number;
+  image: string;
+  phone: string | null;
+  description: string | null;
+  profileUrl: string | null;
+  qrMenu: string | null;
+  isActive: boolean;
+  isOpened: boolean;
+  isReceivingOrders: boolean;
+  totalOrder: number;
+  createdAt: string;
+  distanceKm: number;
+}
+
+export interface GetNearbyParams {
+  latitude: number;
+  longitude: number;
+  radiusKm?: number;
+  limit?: number;
+}
+
+export interface RestaurantDto {
+  id: number;
+  tenantId?: string;
+  restaurantName: string;
+  slug?: string;
+  address: string;
+  longitude?: number;
+  latitude?: number;
+  image: string;
+  phone?: string | null;
+  description?: string | null;
+  profileUrl?: string | null;
+  qrMenu?: string | null;
+  isActive?: boolean;
+  isOpened?: boolean;
+  isReceivingOrders?: boolean;
+  totalOrder?: number;
+  createdAt?: string;
+  distanceKm: number;
+}
+
+export interface PagedRestaurantResultDto {
+  items: RestaurantDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  hasNextPage: boolean;
+}
+
+export interface MenuCategoryItem {
+  id: string;
+  name: string;
+}
+
+export interface MenuDishItem {
+  id: string;
+  name: string;
+  price: number | null;
+  description: string;
+  categoryId: string;
+  imageUrl?: string;
+  isSoldOut?: boolean;
+}
+
+export interface RestaurantMenuSection {
+  id: string;
+  name: string;
+  dishes: MenuDishItem[];
+}
+
+export interface RestaurantMenuData {
+  sections: RestaurantMenuSection[];
+  ungroupedDishes: MenuDishItem[];
+}
+
+export interface RestaurantMenuFromTemplateResult {
+  menuData: RestaurantMenuData;
+  templateData: MenuRestaurantTemplateResponseData | null;
+}

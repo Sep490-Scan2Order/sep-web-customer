@@ -1,7 +1,12 @@
+import { API } from "@/services/api";
 import { api } from "@/services/apiClient";
 import { extractRestaurantPath } from "@/constants/routes";
 import type {
+  GetNearbyParams,
+  NearbyRestaurantDto,
+  PagedRestaurantResultDto,
   Restaurant,
+  RestaurantDto,
   RestaurantSlugResponse,
   RestaurantSlugResponseData,
 } from "@/types";
@@ -12,48 +17,11 @@ type ApiResponse<T> = {
   data: T;
 };
 
-export interface NearbyRestaurantDto {
-  id: number;
-  tenantId: string;
-  restaurantName: string;
-  slug?: string;
-  address: string;
-  longitude: number;
-  latitude: number;
-  image: string;
-  phone: string | null;
-  description: string | null;
-  profileUrl: string | null;
-  qrMenu: string | null;
-  isActive: boolean;
-  isOpened: boolean;
-  isReceivingOrders: boolean;
-  totalOrder: number;
-  createdAt: string;
-  distanceKm: number;
-}
-
-function getRestaurantId(dto: { profileUrl?: string | null; slug?: string; id: number }): string {
-  const path = extractRestaurantPath(dto.profileUrl ?? null);
-  if (path) {
-    const segments = path.split('/').filter(Boolean);
-    return segments[segments.length - 1] || String(dto.id);
-  }
-  return dto.slug || String(dto.id);
-}
-
-export interface GetNearbyParams {
-  latitude: number;
-  longitude: number;
-  radiusKm?: number;
-  limit?: number;
-}
-
 export async function getNearbyRestaurants(
   params: GetNearbyParams
 ): Promise<Restaurant[]> {
   const { data } = await api.get<ApiResponse<NearbyRestaurantDto[]>>(
-    "api/restaurant/nearby",
+    API.RESTAURANT.GET_NEARBY,
     {
       params: {
         latitude: params.latitude,
@@ -82,7 +50,7 @@ export async function getRestaurantById(
   if (Number.isNaN(numId)) return null;
   try {
     const { data } = await api.get<RestaurantSlugResponse>(
-      `api/Restaurant/${numId}`
+      API.RESTAURANT.GET_BY_ID(numId)
     );
     if (data.isSuccess && data.data) return data.data;
     return null;
@@ -100,7 +68,7 @@ export async function getRestaurantBySlug(
   if (!normalizedSlug) return null;
   try {
     const { data } = await api.get<RestaurantSlugResponse>(
-      `api/Restaurant/${encodeURIComponent(normalizedSlug)}`
+      API.RESTAURANT.GET_BY_SLUG(normalizedSlug)
     );
     if (data.isSuccess && data.data) return data.data;
     return null;
@@ -111,35 +79,6 @@ export async function getRestaurantBySlug(
   }
 }
 
-export interface RestaurantDto {
-  id: number;
-  tenantId?: string;
-  restaurantName: string;
-  slug?: string;
-  address: string;
-  longitude?: number;
-  latitude?: number;
-  image: string;
-  phone?: string | null;
-  description?: string | null;
-  profileUrl?: string | null;
-  qrMenu?: string | null;
-  isActive?: boolean;
-  isOpened?: boolean;
-  isReceivingOrders?: boolean;
-  totalOrder?: number;
-  createdAt?: string;
-  distanceKm: number;
-}
-
-export interface PagedRestaurantResultDto {
-  items: RestaurantDto[];
-  page: number;
-  pageSize: number;
-  totalCount: number;
-  hasNextPage: boolean;
-}
-
 export async function getRestaurantsAll(
   latitude: number,
   longitude: number,
@@ -147,7 +86,7 @@ export async function getRestaurantsAll(
   pageSize: number = 20
 ): Promise<PagedRestaurantResultDto> {
   const { data } = await api.get<ApiResponse<PagedRestaurantResultDto>>(
-    "api/Restaurant/all",
+    API.RESTAURANT.GET_ALL,
     {
       params: { latitude, longitude, page, pageSize },
     }

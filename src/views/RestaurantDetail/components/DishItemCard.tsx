@@ -1,5 +1,5 @@
 import { Minus, Plus } from "lucide-react";
-import type { MenuDishItem } from "@/services/menuRestaurantTemplateService";
+import type { MenuDishItem } from "@/types";
 
 interface DishItemCardProps {
   dish: MenuDishItem;

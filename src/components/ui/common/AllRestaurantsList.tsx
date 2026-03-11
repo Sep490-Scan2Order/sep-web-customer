@@ -3,11 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
 import { RestaurantCard } from "./RestaurantCard";
-import {
-  getRestaurantsAll,
-  type RestaurantDto,
-} from "@/services/restaurantService";
-import type { Restaurant } from "@/types";
+import { getRestaurantsAll } from "@/services/restaurantService";
+import type { Restaurant, RestaurantDto } from "@/types";
 
 const PAGE_SIZE = 20;
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";

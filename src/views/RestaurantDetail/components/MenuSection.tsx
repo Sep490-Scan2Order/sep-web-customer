@@ -1,5 +1,8 @@
-import type { MenuLayoutConfig, MenuRestaurantTemplateResponseData } from "@/types";
-import type { RestaurantMenuData } from "@/services/menuRestaurantTemplateService";
+import type {
+  MenuLayoutConfig,
+  MenuRestaurantTemplateResponseData,
+  RestaurantMenuData,
+} from "@/types";
 import DishItemCard from "./DishItemCard";
 
 interface MenuSectionProps {

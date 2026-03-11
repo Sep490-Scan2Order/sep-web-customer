@@ -1,24 +1,12 @@
 import { api } from "@/services/apiClient";
+import { API } from "@/services/api";
+import type { RegisterPhoneResponse, SendOtpResponse } from "@/types";
 
 const ACCESS_TOKEN_KEY = "s2o_access_token";
 const REFRESH_TOKEN_KEY = "s2o_refresh_token";
 const USER_INFO_KEY = "s2o_user_info";
 
 export const AUTH_SESSION_EXPIRED_EVENT = "auth:session-expired";
-
-export interface SendOtpResponse {
-  isSuccess: boolean;
-  message: string;
-}
-
-export interface RegisterPhoneResponse {
-  isSuccess: boolean;
-  message: string;
-  data?: {
-    accessToken?: string;
-    refreshToken?: string;
-  };
-}
 
 function decodeJwtPayload(token: string): { exp?: number } | null {
   try {
@@ -44,7 +32,7 @@ export function isTokenExpired(token: string, bufferSeconds = 30): boolean {
 
 export async function sendOtp(phone: string): Promise<SendOtpResponse> {
   const { data } = await api.post<SendOtpResponse>(
-    "api/Auth/send-otp",
+    API.AUTH.SEND_OTP,
     { phone },
     { _skipAuth: true } as Record<string, unknown>
   );
@@ -57,7 +45,7 @@ export async function registerPhone(
   otp: string
 ): Promise<RegisterPhoneResponse> {
   const { data } = await api.post<RegisterPhoneResponse>(
-    "api/Auth/register-phone",
+    API.AUTH.REGISTER_PHONE,
     { phone, password, otp },
     { _skipAuth: true } as Record<string, unknown>
   );
@@ -109,7 +97,7 @@ export async function refreshAccessToken(): Promise<{
   if (!refreshToken) return null;
   try {
     const res = await api.post(
-      "api/Auth/refresh",
+      API.AUTH.REFRESH,
       { refreshToken },
       { _skipAuth: true } as Record<string, unknown>
     );

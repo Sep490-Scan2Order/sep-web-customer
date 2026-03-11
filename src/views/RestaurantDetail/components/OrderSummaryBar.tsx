@@ -1,5 +1,5 @@
 import { ShoppingCart } from "lucide-react";
-import type { RestaurantMenuData } from "@/services/menuRestaurantTemplateService";
+import type { RestaurantMenuData } from "@/types";
 
 interface OrderSummaryBarProps {
   hasSelectedDishes: boolean;
