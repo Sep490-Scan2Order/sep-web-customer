@@ -1,5 +1,5 @@
 import axios from "axios";
-import { API_BASE_URL } from "@/constants/api";
+import { API_BASE_URL } from "@/services/api";
 
 function getHttpsAgent(): import("https").Agent | undefined {
   if (typeof window !== "undefined") return undefined;

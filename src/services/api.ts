@@ -1,6 +1,16 @@
+function getApiBaseUrl(): string {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window === "undefined") {
+    return `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api`;
+  }
+  return "/api";
+}
+
+export const API_BASE_URL = getApiBaseUrl();
+
 export const API = {
-    BASE_URL:
-        process.env.NEXT_PUBLIC_API_BASE_URL || "https://localhost:7102/api",
     AUTH: {
         SEND_OTP: "/Auth/send-otp",
         REGISTER_PHONE: "/Auth/register-phone",
