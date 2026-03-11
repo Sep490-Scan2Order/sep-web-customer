@@ -4,7 +4,6 @@
 export const ROUTES = {
   HOME: "/",
   HISTORY: "/history",
-  SIGNUP: "/signup",
   MENU: "/menu",
   RESTAURANTS: "/restaurants",
   RESTAURANT: (id: string | number) => `/restaurant/${id}`,
