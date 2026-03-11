@@ -8,7 +8,6 @@ import type { Restaurant } from "@/types";
 
 const DEFAULT_RADIUS_KM = 5;
 const DEFAULT_LIMIT = 10;
-const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 const POSITION_CACHE_KEY = "s2o_last_position";
 const POSITION_CACHE_MAX_AGE_MS = 10 * 60 * 1000;
 
@@ -45,21 +44,6 @@ function setCachedPosition(lat: number, lng: number): void {
   }
 }
 
-async function geocodeAddress(
-  address: string
-): Promise<{ lat: number; lon: number } | null> {
-  const res = await fetch(
-    `${NOMINATIM_URL}?q=${encodeURIComponent(address)}&format=json&limit=1`,
-    { headers: { "Accept-Language": "vi" } }
-  );
-  const data = await res.json();
-  if (!Array.isArray(data) || !data[0]) return null;
-  return {
-    lat: parseFloat(data[0].lat),
-    lon: parseFloat(data[0].lon),
-  };
-}
-
 function fetchNearbyAndSet(
   lat: number,
   lon: number,
@@ -89,13 +73,13 @@ export function NearbyRestaurantGrid() {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
-  const [showAddressInput, setShowAddressInput] = useState(false);
-  const [addressValue, setAddressValue] = useState("");
-  const [addressLoading, setAddressLoading] = useState(false);
 
   const requestLocation = useCallback((skipCache = false) => {
     if (!navigator?.geolocation) {
-      setStatus("empty");
+      setError(
+        "Thiết bị hoặc trình duyệt của bạn không hỗ trợ định vị. Vui lòng bật GPS hoặc dùng trình duyệt khác."
+      );
+      setStatus("error");
       return;
     }
     if (!skipCache) {
@@ -120,7 +104,18 @@ export function NearbyRestaurantGrid() {
         setCachedPosition(lat, lng);
         fetchNearbyAndSet(lat, lng, setRestaurants, setStatus, setError);
       },
-      () => setStatus("empty"),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          setError(
+            "Bạn đã tắt quyền truy cập vị trí cho S2O. Hãy bật lại quyền định vị trong phần cài đặt trình duyệt (biểu tượng ổ khóa bên cạnh thanh địa chỉ), sau đó nhấn lại nút 'Bật vị trí (GPS)'."
+          );
+        } else {
+          setError(
+            "Không lấy được vị trí của bạn. Vui lòng kiểm tra GPS/kết nối mạng rồi thử lại."
+          );
+        }
+        setStatus("error");
+      },
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
     );
   }, []);
@@ -128,36 +123,6 @@ export function NearbyRestaurantGrid() {
   useEffect(() => {
     requestLocation(false);
   }, [requestLocation]);
-
-  const handleSubmitAddress = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = addressValue.trim();
-    if (!trimmed) return;
-    setAddressLoading(true);
-    setError(null);
-    try {
-      const coords = await geocodeAddress(trimmed);
-      if (!coords) {
-        setError("Không tìm thấy địa chỉ. Bạn thử nhập rõ hơn nhé.");
-        return;
-      }
-      await getNearbyRestaurants({
-        latitude: coords.lat,
-        longitude: coords.lon,
-        radiusKm: DEFAULT_RADIUS_KM,
-        limit: DEFAULT_LIMIT,
-      }).then((data) => {
-        setRestaurants(data);
-        setStatus("success");
-        setShowAddressInput(false);
-        setAddressValue("");
-      });
-    } catch {
-      setError("Không tìm được nhà hàng theo địa chỉ này.");
-    } finally {
-      setAddressLoading(false);
-    }
-  };
 
   if (status === "loading") {
     return (
@@ -180,62 +145,17 @@ export function NearbyRestaurantGrid() {
           <MapPin className="h-10 w-10" strokeWidth={1.5} />
         </div>
         <p className="mb-6 max-w-md text-slate-700">
-          S2O chưa biết bạn đang ở đâu! Nhập địa chỉ để khám phá các nhà hàng
-          ngon quanh bạn nhé.
+          S2O chưa biết bạn đang ở đâu! Hãy bật vị trí (GPS) trên thiết bị và
+          cho phép trình duyệt truy cập vị trí để khám phá các nhà hàng ngon
+          quanh bạn nhé.
         </p>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button
-            type="button"
-            onClick={() => setShowAddressInput((v) => !v)}
-            className="rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white shadow-md transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-          >
-            Nhập địa chỉ của bạn
-          </button>
-          <button
-            type="button"
-            onClick={() => requestLocation(true)}
-            className="text-sm font-medium text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-slate-800 hover:decoration-slate-500"
-          >
-            Bật vị trí (GPS)
-          </button>
-        </div>
-        {showAddressInput && (
-          <form
-            onSubmit={handleSubmitAddress}
-            className="mt-6 w-full max-w-sm space-y-2"
-          >
-            <input
-              type="text"
-              value={addressValue}
-              onChange={(e) => setAddressValue(e.target.value)}
-              placeholder="Ví dụ: 50 Lê Văn Việt, Quận 9, TP.HCM"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              autoFocus
-              disabled={addressLoading}
-            />
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={addressLoading || !addressValue.trim()}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {addressLoading ? "Đang tìm..." : "Tìm nhà hàng"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddressInput(false);
-                  setAddressValue("");
-                  setError(null);
-                }}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Hủy
-              </button>
-            </div>
-            {error && <p className="text-left text-sm text-amber-600">{error}</p>}
-          </form>
-        )}
+        <button
+          type="button"
+          onClick={() => requestLocation(true)}
+          className="rounded-xl bg-emerald-600 px-5 py-2.5 font-semibold text-white shadow-md transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+        >
+          Bật vị trí (GPS)
+        </button>
       </div>
     );
   }
