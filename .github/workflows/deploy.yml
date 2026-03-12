@@ -12,12 +12,12 @@ jobs:
       - name: SSH into VM and Deploy
         uses: appleboy/ssh-action@v1.0.3
         env:
-          ENV_FILE: ${{ secrets.ENV_FILE }} # Lấy dữ liệu từ GitHub
+          ENV_FILE: ${{ secrets.ENV_FILE }}
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.VM_SSH_KEY }}
-          envs: ENV_FILE # Khai báo biến môi trường cho script
+          envs: ENV_FILE
           script: |
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
@@ -31,6 +31,11 @@ jobs:
             git reset --hard
             git pull origin main
             
-            # 3. Cài đặt và chạy lại
+            # 3. Cài đặt thư viện
             npm install
-            pm2 restart sep-web-dev || pm2 start npm --name "sep-web-dev" -- run dev
+            
+            # 4. Build dự án Next.js cho môi trường Production (BƯỚC MỚI)
+            npm run build
+            
+            # 5. Khởi động lại ứng dụng ở chế độ production
+            pm2 restart sep-web-prod || pm2 start npm --name "sep-web-prod" -- start
