@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         hostname: "pasgo.vn",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "ysafyqmiutvhohvsthnt.supabase.co",
+        pathname: "/**",
+      },
     ],
   },
 };
