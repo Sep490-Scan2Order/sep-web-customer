@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
@@ -68,7 +68,6 @@ type LayoutCanvasConfig = {
 type LayoutConfig = {
   version?: number;
   canvas?: LayoutCanvasConfig;
-  // các field khác (slots, dataMapping, header, chips, card, ...) không cần dùng ở đây
 };
 
 function formatVND(value: number): string {
@@ -269,7 +268,8 @@ function DishCardSkeleton() {
   );
 }
 
-export default function MenuPage() {
+// BƯỚC 1: Tách logic chính ra một component riêng (MenuContent)
+function MenuContent() {
   const searchParams = useSearchParams();
   const restaurantParamRaw = searchParams.get("restaurant") ?? "";
   const restaurantParam = restaurantParamRaw
@@ -295,7 +295,6 @@ export default function MenuPage() {
     async function load() {
       setState({ status: "loading" });
       try {
-        // 1. Lấy thông tin nhà hàng theo slug để có restaurantId
         const infoRes = await fetch(
           `${API_BASE_URL}${API.RESTAURANT.GET_BY_SLUG(restaurantParam)}`
         );
@@ -308,7 +307,6 @@ export default function MenuPage() {
           throw new Error("Dữ liệu nhà hàng không hợp lệ (không có id).");
         }
 
-        // 2. Gọi API template + menu theo restaurantId
         const res = await fetch(
           `${API_BASE_URL}/MenuTemplate/restaurant/${restaurantId}/template`
         );
@@ -327,12 +325,12 @@ export default function MenuPage() {
         if (!cancelled) {
           setState({ status: "success", data, layoutConfigJson });
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!cancelled) {
           setState({
             status: "error",
             error:
-              e?.message || "Không thể tải menu. Vui lòng thử lại sau ít phút.",
+              (e as Error)?.message || "Không thể tải menu. Vui lòng thử lại sau ít phút.",
           });
         }
       }
@@ -410,7 +408,7 @@ export default function MenuPage() {
     } else if (canvasConfig.backgroundColor) {
       styles.backgroundColor = canvasConfig.backgroundColor;
     } else {
-      styles.backgroundColor = "#f8fafc"; // fallback bg-slate-50
+      styles.backgroundColor = "#f8fafc";
     }
     return styles;
   })();
@@ -521,5 +519,20 @@ export default function MenuPage() {
         )}
       </main>
     </div>
+  );
+}
+
+// BƯỚC 2: Export Component chính được bọc trong Suspense
+export default function MenuPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-slate-50">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+        </div>
+      }
+    >
+      <MenuContent />
+    </Suspense>
   );
 }
