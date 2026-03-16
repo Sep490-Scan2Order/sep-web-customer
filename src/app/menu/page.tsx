@@ -26,7 +26,10 @@ type DishDto = {
   isSoldOut: boolean;
   hasPromotion: boolean;
   promotionLabel: string | null;
+  promotionName?: string | null;
   dishAvailabilityStock: number | null;
+  promoType?: number | null;
+  expiredAt?: string | null;
 };
 
 type CategoryDto = {
@@ -42,6 +45,8 @@ type MenuTemplateApiResponse = {
   data?: {
     templateId: number;
     restaurantId: number;
+    themeColor: string;
+    fontFamily: string;
     layoutConfigJson: string;
     menuData: CategoryDto[];
   } | null;
@@ -54,6 +59,8 @@ type FetchState =
       status: "success";
       data: CategoryDto[];
       layoutConfigJson: string | null;
+      themeColor: string | null;
+      fontFamily: string | null;
     }
   | { status: "error"; error: string };
 
@@ -65,10 +72,17 @@ type LayoutCanvasConfig = {
   backgroundImageUrl?: string;
 };
 
+type LayoutCardConfig = {
+  themeColor?: string;
+  priceColorMode?: string;
+};
+
 type LayoutConfig = {
   version?: number;
   canvas?: LayoutCanvasConfig;
-  // các field khác (slots, dataMapping, header, chips, card, ...) không cần dùng ở đây
+  card?: LayoutCardConfig;
+  themeColor?: string;
+  // các field khác (slots, dataMapping, header, chips, ...) không cần dùng ở đây
 };
 
 function formatVND(value: number): string {
@@ -84,9 +98,16 @@ interface DishCardProps {
   quantity: number;
   onIncrement: () => void;
   onDecrement: () => void;
+  themeColor: string;
 }
 
-function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
+function DishCard({
+  dish,
+  quantity,
+  onIncrement,
+  onDecrement,
+  themeColor,
+}: DishCardProps) {
   const {
     dishName,
     description,
@@ -96,7 +117,9 @@ function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
     isSoldOut,
     hasPromotion,
     promotionLabel,
+    promotionName,
     dishAvailabilityStock,
+    promoType,
   } = dish;
 
   const soldOut = isSoldOut || !dishAvailabilityStock;
@@ -108,7 +131,7 @@ function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
 
   return (
     <div
-      className={`relative flex gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md sm:p-4 ${
+      className={`relative flex h-[152px] gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md sm:h-[168px] sm:p-4 ${
         soldOut ? "opacity-50 grayscale-[0.3]" : ""
       }`}
     >
@@ -121,10 +144,34 @@ function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
           </div>
         )}
 
-        {hasPromotion && promotionLabel && (
-          <div className="absolute left-1 top-1 inline-flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+        {hasPromotion && typeof promoType === "number" && (
+          <div
+            className="absolute right-1 top-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+            style={{
+              backgroundColor:
+                promoType === 0
+                  ? "#3b82f6" // Khuyến mãi thường
+                  : promoType === 1
+                  ? "#f97316" // Giờ vàng
+                  : promoType === 2
+                  ? "#ef4444" // Xả hàng
+                  : promoType === 3
+                  ? "#06b6d4" // Ưu đãi trong tuần
+                  : "#6b7280", 
+            }}
+          >
             <Tags className="h-3 w-3" />
-            <span>{promotionLabel}</span>
+            <span className="max-w-[6rem] truncate">
+              {promoType === 0
+                ? "Khuyến mãi"
+                : promoType === 1
+                ? "Giờ vàng"
+                : promoType === 2
+                ? "Xả hàng"
+                : promoType === 3
+                ? "Ưu đãi trong tuần"
+                : "Khuyến mãi"}
+            </span>
           </div>
         )}
 
@@ -137,29 +184,56 @@ function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
 
       <div className="flex min-w-0 flex-1 flex-col justify-between">
         <div>
-          <h3 className="line-clamp-2 text-sm font-semibold text-slate-900 sm:text-base">
-            {dishName}
-          </h3>
+          <div className="flex min-w-0 items-start gap-2">
+            <h3 className="min-w-0 flex-1 line-clamp-2 text-sm font-semibold text-slate-900 sm:text-base">
+              {dishName}
+            </h3>
+            {hasPromotion && promotionLabel && (
+              <span
+                className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
+                style={{ backgroundColor: themeColor }}
+                title={promotionName || promotionLabel}
+              >
+                <Tags className="h-3 w-3" />
+                <span className="max-w-[9rem] truncate">{promotionLabel}</span>
+              </span>
+            )}
+          </div>
           {description && (
-            <p className="mt-1 line-clamp-2 text-xs text-slate-500 sm:text-sm">
+            <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-xs text-slate-500 sm:min-h-[3rem] sm:text-sm">
               {description}
             </p>
           )}
+          {!description && (
+            <div className="mt-1 min-h-[2.5rem] sm:min-h-[3rem]" />
+          )}
         </div>
 
-        <div className="mt-2 flex items-end justify-between gap-2">
+        <div className="mt-1.5 flex items-end justify-between gap-2">
           <div className="flex flex-col">
             {hasPromotion &&
-              discountedPrice &&
-              discountedPrice > 0 &&
-              discountedPrice !== price && (
-                <span className="text-xs text-slate-400 line-through">
+            discountedPrice &&
+            discountedPrice > 0 &&
+            discountedPrice !== price ? (
+              <div className="flex items-baseline gap-2">
+                <span
+                  className="text-sm font-semibold sm:text-base"
+                  style={{ color: themeColor }}
+                >
+                  {formatVND(discountedPrice)}
+                </span>
+                <span className="text-[11px] text-slate-400 line-through sm:text-xs">
                   {formatVND(price)}
                 </span>
-              )}
-            <span className="text-sm font-semibold text-red-500 sm:text-base">
-              {formatVND(displayPrice)}
-            </span>
+              </div>
+            ) : (
+              <span
+                className="text-sm font-semibold sm:text-base"
+                style={{ color: themeColor }}
+              >
+                {formatVND(displayPrice)}
+              </span>
+            )}
             {typeof dishAvailabilityStock === "number" && dishAvailabilityStock > 0 && (
               <span className="mt-0.5 text-[11px] text-slate-500">
                 SL: {dishAvailabilityStock}
@@ -169,12 +243,19 @@ function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
 
           <div className="flex items-center gap-2">
             {quantity > 0 ? (
-              <div className="inline-flex items-center rounded-full border border-emerald-500 bg-emerald-50 px-2 py-1 text-xs text-slate-800 sm:px-3 sm:text-sm">
+              <div
+                className="inline-flex items-center rounded-full border px-2 py-1 text-xs text-slate-800 sm:px-3 sm:text-sm"
+                style={{
+                  borderColor: themeColor,
+                  backgroundColor: `${themeColor}14`,
+                }}
+              >
                 <button
                   type="button"
                   onClick={onDecrement}
                   disabled={soldOut}
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-100 disabled:opacity-40"
+                  className="flex h-6 w-6 items-center justify-center rounded-full disabled:opacity-40"
+                  style={{ color: themeColor }}
                 >
                   <Minus className="h-3 w-3" />
                 </button>
@@ -185,7 +266,8 @@ function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
                   type="button"
                   onClick={onIncrement}
                   disabled={soldOut}
-                  className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-40"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-white disabled:opacity-40"
+                  style={{ backgroundColor: themeColor }}
                 >
                   <Plus className="h-3 w-3" />
                 </button>
@@ -195,10 +277,11 @@ function DishCard({ dish, quantity, onIncrement, onDecrement }: DishCardProps) {
                 type="button"
                 onClick={onIncrement}
                 disabled={soldOut}
-                className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300 sm:px-4 sm:text-sm"
+                className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300 sm:px-4 sm:text-sm"
+                style={{ backgroundColor: themeColor }}
               >
                 <Plus className="h-3 w-3" />
-                Thêm vào giỏ
+                <span className="whitespace-nowrap">Thêm vào giỏ</span>
               </button>
             )}
           </div>
@@ -212,12 +295,14 @@ interface CategoryNavProps {
   categories: CategoryDto[];
   activeCategoryId: number | null;
   onChange: (id: number | null) => void;
+  themeColor: string;
 }
 
 function CategoryNav({
   categories,
   activeCategoryId,
   onChange,
+  themeColor,
 }: CategoryNavProps) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
@@ -226,9 +311,14 @@ function CategoryNav({
         onClick={() => onChange(null)}
         className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium sm:px-4 sm:text-sm ${
           activeCategoryId === null
-            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+            ? "text-white"
             : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
         }`}
+        style={
+          activeCategoryId === null
+            ? { backgroundColor: themeColor, borderColor: themeColor }
+            : undefined
+        }
       >
         Tất cả
       </button>
@@ -239,9 +329,14 @@ function CategoryNav({
           onClick={() => onChange(cat.categoryId)}
           className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium sm:px-4 sm:text-sm ${
             activeCategoryId === cat.categoryId
-              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+              ? "text-white"
               : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
           }`}
+          style={
+            activeCategoryId === cat.categoryId
+              ? { backgroundColor: themeColor, borderColor: themeColor }
+              : undefined
+          }
         >
           {cat.categoryName}
         </button>
@@ -324,8 +419,16 @@ export default function MenuPage() {
           ? raw.data!.menuData
           : [];
         const layoutConfigJson = raw?.data?.layoutConfigJson ?? null;
+        const rawThemeColor = raw?.data?.themeColor ?? null;
+        const rawFontFamily = raw?.data?.fontFamily ?? null;
         if (!cancelled) {
-          setState({ status: "success", data, layoutConfigJson });
+          setState({
+            status: "success",
+            data,
+            layoutConfigJson,
+            themeColor: typeof rawThemeColor === "string" ? rawThemeColor : null,
+            fontFamily: typeof rawFontFamily === "string" ? rawFontFamily : null,
+          });
         }
       } catch (e: any) {
         if (!cancelled) {
@@ -346,6 +449,47 @@ export default function MenuPage() {
   }, [restaurantParam]);
 
   const categories = state.status === "success" ? state.data : [];
+
+  const themeColor = useMemo(() => {
+    if (state.status !== "success") return "#22c55e";
+
+    const direct = state.themeColor?.trim();
+
+    let fromLayout: string | null = null;
+    try {
+      const parsed = state.layoutConfigJson
+        ? (JSON.parse(state.layoutConfigJson) as LayoutConfig)
+        : null;
+      fromLayout =
+        parsed?.themeColor ??
+        parsed?.card?.themeColor ??
+        null;
+    } catch {
+      fromLayout = null;
+    }
+
+    const resolved = direct || fromLayout;
+    return resolved && resolved.trim() ? resolved.trim() : "#22c55e";
+  }, [state]);
+
+  const fontFamily = useMemo(() => {
+    if (state.status !== "success") return undefined;
+
+    const direct = state.fontFamily?.trim();
+    if (direct) return direct;
+
+    try {
+      const parsed = state.layoutConfigJson
+        ? (JSON.parse(state.layoutConfigJson) as LayoutConfig & {
+            canvas?: LayoutCanvasConfig & { fontFamily?: string };
+          })
+        : null;
+      const fromLayout = parsed?.canvas?.fontFamily;
+      return fromLayout?.trim() || undefined;
+    } catch {
+      return undefined;
+    }
+  }, [state]);
 
   const filteredCategories = useMemo(() => {
     if (state.status !== "success") return [];
@@ -416,7 +560,13 @@ export default function MenuPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-slate-50" style={backgroundStyles}>
+    <div
+      className="min-h-screen bg-slate-50"
+      style={{
+        ...backgroundStyles,
+        fontFamily: fontFamily || undefined,
+      }}
+    >
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 px-3 py-2 backdrop-blur sm:px-4 sm:py-3">
         <div className="mx-auto flex max-w-5xl items-center gap-2">
           {restaurantParam && (
@@ -435,14 +585,26 @@ export default function MenuPage() {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Tìm món ăn, đồ uống..."
-                className="h-9 w-full rounded-full border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-400 sm:h-10 sm:text-base"
+                className="h-9 w-full rounded-full border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-1 sm:h-10 sm:text-base"
+                style={
+                  {
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore - CSSProperties index signature for CSS vars
+                    "--tw-ring-color": themeColor,
+                  } as React.CSSProperties
+                }
               />
             </label>
           </div>
           <button
             type="button"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 shadow-sm hover:bg-emerald-100"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-sm"
             aria-label="Giỏ hàng"
+            style={{
+              borderColor: `${themeColor}40`,
+              backgroundColor: `${themeColor}14`,
+              color: themeColor,
+            }}
           >
             <ShoppingCart className="h-4 w-4" />
           </button>
@@ -455,6 +617,7 @@ export default function MenuPage() {
             categories={categories}
             activeCategoryId={activeCategoryId}
             onChange={setActiveCategoryId}
+            themeColor={themeColor}
           />
         )}
 
@@ -506,6 +669,7 @@ export default function MenuPage() {
                       quantity={quantities[dish.dishId] ?? 0}
                       onIncrement={() => handleIncrement(dish.dishId)}
                       onDecrement={() => handleDecrement(dish.dishId)}
+                      themeColor={themeColor}
                     />
                   ))}
                 </div>
