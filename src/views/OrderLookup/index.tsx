@@ -354,11 +354,6 @@ export default function OrderLookupView() {
                                     <p className="text-base font-extrabold text-slate-900">
                                       Đơn #{o.orderCode}
                                     </p>
-                                    <span
-                                      className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-extrabold ring-1 ${styles.badge}`}
-                                    >
-                                      {statusLabel(o.status)}
-                                    </span>
                                   </div>
 
                                   <p className="mt-1 text-sm text-slate-600">Tạo lúc: {createdText}</p>
@@ -373,13 +368,27 @@ export default function OrderLookupView() {
                                           const price = renderLinePrice(d);
                                           return (
                                             <li key={`${o.orderId}-${d.dishId}`} className="flex items-start justify-between gap-3">
-                                              <div className="min-w-0">
-                                                <p className="truncate text-sm font-semibold text-slate-900">
-                                                  {d.dishName}
-                                                </p>
-                                                <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                                                  x {d.quantity}
-                                                </p>
+                                              <div className="flex min-w-0 items-start gap-2">
+                                                {d.imageUrl ? (
+                                                  <img
+                                                    src={d.imageUrl}
+                                                    alt={d.dishName}
+                                                    className="mt-0.5 h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover"
+                                                    loading="lazy"
+                                                  />
+                                                ) : (
+                                                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-400">
+                                                    Ảnh
+                                                  </div>
+                                                )}
+                                                <div className="min-w-0">
+                                                  <p className="truncate text-sm font-semibold text-slate-900">
+                                                    {d.dishName}
+                                                  </p>
+                                                  <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                                                    x {d.quantity}
+                                                  </p>
+                                                </div>
                                               </div>
                                               <div className="shrink-0 text-right">
                                                 {price.discounted != null ? (

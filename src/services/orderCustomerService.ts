@@ -19,6 +19,7 @@ export type CustomerOrderSummary = {
   orderDetails?: Array<{
     dishId: number;
     dishName: string;
+    imageUrl?: string | null;
     quantity: number;
     originalPrice: number;
     discountedPrice?: number | null;
