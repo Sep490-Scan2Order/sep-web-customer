@@ -4,10 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Banknote,
   BellRing,
   Home,
-  Landmark,
   MapPin,
   Clock,
   MoonStar,
@@ -83,8 +81,9 @@ export default function RestaurantDetailView({
   const [searchQuery, setSearchQuery] = useState("");
   const [menuOpened] = useState(initialMenuOpened);
   const [now, setNow] = useState<Date>(new Date());
-  const [showPaymentMethod, setShowPaymentMethod] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | null>(null);
+  const [showOrderLookup, setShowOrderLookup] = useState(false);
+  const [lookupPhone, setLookupPhone] = useState("");
+  const [lookupError, setLookupError] = useState<string | null>(null);
   const [outdoorTemp, setOutdoorTemp] = useState<number | null>(null);
 
   useEffect(() => {
@@ -325,7 +324,11 @@ export default function RestaurantDetailView({
           <section className="mt-4 grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => setShowPaymentMethod(true)}
+              onClick={() => {
+                setLookupError(null);
+                setLookupPhone("");
+                setShowOrderLookup(true);
+              }}
               className="flex h-20 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-xs font-semibold text-slate-700 shadow-sm"
             >
               <ReceiptText className="h-5 w-5 text-slate-600" />
@@ -392,54 +395,53 @@ export default function RestaurantDetailView({
         />
       )}
 
-      {showPaymentMethod && (
+      {showOrderLookup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-3 sm:px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl sm:p-5">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-slate-800">Bạn muốn thanh toán bằng?</p>
+              <p className="text-sm font-semibold text-slate-800">Tra cứu hóa đơn</p>
               <button
                 type="button"
-                onClick={() => setShowPaymentMethod(false)}
+                onClick={() => setShowOrderLookup(false)}
                 className="rounded-full px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
               >
                 Đóng
               </button>
             </div>
 
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("cash")}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                  paymentMethod === "cash"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                <Banknote className="h-4 w-4" />
-                Tiền mặt
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod("transfer")}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition ${
-                  paymentMethod === "transfer"
-                    ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-                }`}
-              >
-                <Landmark className="h-4 w-4" />
-                Chuyển khoản
-              </button>
+            <div className="mt-3">
+              <label className="block text-xs font-semibold text-slate-600">Nhập số điện thoại</label>
+              <input
+                value={lookupPhone}
+                onChange={(e) => {
+                  setLookupPhone(e.target.value);
+                  setLookupError(null);
+                }}
+                inputMode="tel"
+                placeholder="VD: 09xxxxxxx"
+                className="mt-1 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none placeholder:text-slate-400 focus:border-orange-300"
+              />
+              {lookupError && <p className="mt-2 text-xs font-semibold text-rose-600">{lookupError}</p>}
             </div>
 
             <button
               type="button"
-              onClick={() => setShowPaymentMethod(false)}
-              disabled={!paymentMethod}
-              className="mt-3 w-full rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+              onClick={() => {
+                const phone = lookupPhone.trim();
+                if (!phone) {
+                  setLookupError("Vui lòng nhập số điện thoại.");
+                  return;
+                }
+                setShowOrderLookup(false);
+                router.push(
+                  `/orders/lookup?restaurantId=${encodeURIComponent(String(r.id))}&restaurantSlug=${encodeURIComponent(
+                    r.slug
+                  )}&phoneNumber=${encodeURIComponent(phone)}`
+                );
+              }}
+              className="mt-3 w-full rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"
             >
-              Xác nhận
+              Tra cứu
             </button>
           </div>
         </div>

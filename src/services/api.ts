@@ -16,6 +16,9 @@ export const API = {
         REGISTER_PHONE: "/Auth/register-phone",
         REFRESH: "/Auth/refresh",
     },
+    ORDER: {
+        CUSTOMER_GET_ORDERS: "/Order/customer/orders",
+    },
     RESTAURANT: {
         GET_NEARBY: "/Restaurant/nearby",
         GET_BY_ID: (id: number | string) => `/Restaurant/${id}`,

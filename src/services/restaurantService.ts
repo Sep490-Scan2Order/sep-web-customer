@@ -57,7 +57,12 @@ export async function getRestaurantById(
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } })?.response?.status;
     if (status === 404) return null;
-    throw err;
+    const url = API.RESTAURANT.GET_BY_ID(numId);
+    const message =
+      (err as { message?: string })?.message ||
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+      "Lỗi không xác định khi gọi API.";
+    throw new Error(`[getRestaurantById] ${message} (status=${status ?? "unknown"}, url=${url})`);
   }
 }
 
@@ -75,7 +80,14 @@ export async function getRestaurantBySlug(
   } catch (err: unknown) {
     const status = (err as { response?: { status?: number } })?.response?.status;
     if (status === 404) return null;
-    throw err;
+    const url = API.RESTAURANT.GET_BY_SLUG(normalizedSlug);
+    const message =
+      (err as { message?: string })?.message ||
+      (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+      "Lỗi không xác định khi gọi API.";
+    throw new Error(
+      `[getRestaurantBySlug] ${message} (status=${status ?? "unknown"}, url=${url})`
+    );
   }
 }
 
