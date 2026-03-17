@@ -3,7 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Banknote, BellRing, Home, Landmark, MapPin, ReceiptText, Search, Star } from "lucide-react";
+import {
+  Banknote,
+  BellRing,
+  Home,
+  Landmark,
+  MapPin,
+  Clock,
+  MoonStar,
+  ReceiptText,
+  Search,
+  Star,
+  SunMedium,
+  ThermometerSun,
+} from "lucide-react";
 import { MainLayout } from "@/components/ui/common";
 import type {
   MenuLayoutConfig,
@@ -72,6 +85,7 @@ export default function RestaurantDetailView({
   const [now, setNow] = useState<Date>(new Date());
   const [showPaymentMethod, setShowPaymentMethod] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | null>(null);
+  const [outdoorTemp, setOutdoorTemp] = useState<number | null>(null);
 
   useEffect(() => {
     setCoverSrc(r.image || FALLBACK_RESTAURANT_IMAGE);
@@ -129,6 +143,42 @@ export default function RestaurantDetailView({
     };
   }, []);
 
+  useEffect(() => {
+    const lat = r.latitude;
+    const lng = r.longitude;
+    if (
+      typeof lat !== "number" ||
+      typeof lng !== "number" ||
+      Number.isNaN(lat) ||
+      Number.isNaN(lng)
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function fetchTemperature() {
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current_weather=true`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        const t = data?.current_weather?.temperature;
+        if (!cancelled && typeof t === "number") {
+          setOutdoorTemp(t);
+        }
+      } catch {
+        // ignore errors, giữ outdoorTemp = null
+      }
+    }
+
+    fetchTemperature();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [r.latitude, r.longitude]);
+
   const handleToggleDish = (dishId: string) => {
     setSelectedDishes((prev) => {
       const newSelected = { ...prev };
@@ -154,11 +204,13 @@ export default function RestaurantDetailView({
 
   const distanceText =
     r.distanceKm != null ? `~ ${r.distanceKm.toFixed(1)} km` : "";
-  const isOpened = r.isOpened;
-  const statusLabel = isOpened ? "Đang mở cửa" : "Đã đóng cửa";
-  const statusDot = isOpened ? "🟢" : "🔴";
+  const isReceivingOrders = r.isReceivingOrders;
+  const statusLabel = isReceivingOrders ? "Đang nhận đơn" : "Tạm ngưng nhận đơn";
+  const statusDot = isReceivingOrders ? "🟢" : "🔴";
   const timeGreeting = getTimeBasedGreeting(now);
   const greetingText = `${timeGreeting}, Khách hàng`;
+  const hour = now.getHours();
+  const isDaytime = hour >= 6 && hour < 18;
 
   const handleViewMenu = () => {
     router.push(`${ROUTES.MENU}?restaurant=${r.slug}`);
@@ -207,8 +259,8 @@ export default function RestaurantDetailView({
           </div>
         </div>
       ) : (
-      <div className="min-h-screen bg-[#ECECEC] px-3 py-4 sm:px-4 sm:py-6 lg:px-6">
-        <div className="mx-auto w-full max-w-4xl rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4 lg:p-5">
+      <div className="flex min-h-[100dvh] flex-col bg-white px-0 py-0 sm:min-h-screen sm:bg-[#ECECEC] sm:px-4 sm:py-6 lg:px-6">
+        <div className="mx-auto flex w-full flex-1 flex-col max-w-none bg-white p-3 sm:max-w-4xl sm:rounded-2xl sm:border sm:border-slate-200 sm:p-4 sm:shadow-sm lg:p-5">
           <header>
             <div className="flex items-start justify-between gap-2">
               <div>
@@ -243,61 +295,71 @@ export default function RestaurantDetailView({
           </section>
 
           <section className="mt-3 rounded-xl bg-white p-3">
-            <p className="text-[29px] leading-none text-slate-300">..</p>
             <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-800">
               {greetingText}
             </h2>
-            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-              {distanceText && <span>{distanceText}</span>}
-              <span>{statusDot} {statusLabel}</span>
+
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <span>
+                  {statusDot} {statusLabel}
+                </span>
+                {distanceText && <span>• {distanceText}</span>}
+              </div>
+
+              <div className="flex items-center gap-1 whitespace-nowrap">
+                {isDaytime ? (
+                  <SunMedium className="h-4 w-4 text-amber-400" />
+                ) : (
+                  <MoonStar className="h-4 w-4 text-sky-500" />
+                )}
+                <span className="text-slate-600">
+                  {typeof outdoorTemp === "number"
+                    ? `${outdoorTemp.toFixed(1)}°C`
+                    : "—"}
+                </span>
+              </div>
             </div>
           </section>
 
-          <section className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <section className="mt-4 grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setShowPaymentMethod(true)}
-              className="rounded-xl border border-slate-200 bg-[#F2EFEA] p-3 text-left text-xs font-semibold text-slate-700"
+              className="flex h-20 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-xs font-semibold text-slate-700 shadow-sm"
             >
-              <ReceiptText className="mb-1 h-4 w-4 text-slate-600" />
-              <span>Yêu cầu tính tiền</span>
+              <ReceiptText className="h-5 w-5 text-slate-600" />
+              <span className="text-sm font-semibold leading-tight text-slate-800 sm:text-base">
+                Tra cứu hóa đơn
+              </span>
             </button>
+
             <button
               type="button"
-              onClick={() => setInfoOpen(true)}
-              className="rounded-xl border border-slate-200 bg-[#E7F3F2] p-3 text-left text-xs font-semibold text-slate-700"
+              className="flex h-20 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-xs font-semibold text-slate-600 shadow-sm"
             >
-              <BellRing className="mb-1 h-4 w-4 text-slate-600" />
-              <span>Gọi phục vụ</span>
+              <Clock className="h-5 w-5 text-slate-500" />
+              <span className="text-sm font-semibold leading-tight text-slate-800 sm:text-base">
+                Xem lịch sử đơn
+              </span>
             </button>
-            <a
-              href={buildDirectionsUrl(r)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-xl border border-slate-200 bg-[#F4F0E3] p-3 text-left text-xs font-semibold text-slate-700"
-            >
-              <Star className="mb-1 h-4 w-4 text-slate-600" />
-              <span>Góp ý</span>
-            </a>
           </section>
 
-          <section className="mt-3">
+          <section className="mt-5">
             <button
               type="button"
               onClick={handleViewMenu}
-              className="flex w-full items-center justify-between rounded-2xl bg-gradient-to-r from-[#F58A1F] to-[#F2CE59] px-4 py-4 text-left text-lg font-bold text-white shadow-sm transition hover:brightness-95 sm:py-5 sm:text-2xl"
+              className="flex w-full items-center justify-between rounded-3xl bg-gradient-to-r from-[#F58A1F] to-[#F2CE59] px-5 py-5 text-left text-xl font-bold text-white shadow-sm transition hover:brightness-95 sm:py-6 sm:text-3xl"
             >
               <span>View Menu - Order food</span>
-              <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/35 text-lg">›</span>
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/35 text-xl">
+                ›
+              </span>
             </button>
           </section>
 
-          <footer className="mt-6 border-t border-slate-200 pt-4 text-center text-xs text-slate-400">
-            <p>Powered by scan2order.io.vn</p>
-          </footer>
-
-          <div className="mt-4 border-t border-slate-200 pt-4">
-            {menuOpened && (
+          {menuOpened && (
+            <div className="mt-4">
               <MenuSection
                 menuData={menuData}
                 menuTemplateData={menuTemplateData}
@@ -310,8 +372,12 @@ export default function RestaurantDetailView({
                 isMenuLoading={isMenuLoading}
                 menuError={menuError}
               />
-            )}
-          </div>
+            </div>
+          )}
+
+          <footer className="mt-auto pb-2 text-center text-xs text-slate-400">
+            <p>Powered by scan2order.io.vn</p>
+          </footer>
         </div>
       </div>
       )}
