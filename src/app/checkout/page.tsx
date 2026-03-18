@@ -101,11 +101,14 @@ function CheckoutContent() {
       return;
     }
     try {
-      const savedResult = window.sessionStorage.getItem(SESSION_RESULT_KEY);
+      const savedResult = window.localStorage.getItem(SESSION_RESULT_KEY);
       if (savedResult) {
-        const parsed = JSON.parse(savedResult) as OrderStep;
-        if (parsed.kind === "done_cash" || parsed.kind === "done_bank") {
-          setStep(parsed);
+        const parsed = JSON.parse(savedResult) as { step: OrderStep; savedAt: number };
+        const TTL_MS = 24 * 60 * 60 * 1000;
+        if (Date.now() - parsed.savedAt > TTL_MS) {
+          window.localStorage.removeItem(SESSION_RESULT_KEY);
+        } else if (parsed.step?.kind === "done_cash" || parsed.step?.kind === "done_bank") {
+          setStep(parsed.step);
           return;
         }
       }
@@ -162,7 +165,7 @@ function CheckoutContent() {
       window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
     }
     if (SESSION_RESULT_KEY) {
-      window.sessionStorage.removeItem(SESSION_RESULT_KEY);
+      window.localStorage.removeItem(SESSION_RESULT_KEY);
     }
   }
 
@@ -191,7 +194,7 @@ function CheckoutContent() {
       setStep(newStep);
 
       if (SESSION_RESULT_KEY) {
-        window.sessionStorage.setItem(SESSION_RESULT_KEY, JSON.stringify(newStep));
+        window.localStorage.setItem(SESSION_RESULT_KEY, JSON.stringify({ step: newStep, savedAt: Date.now() }));
       }
       window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
       if (restaurantIdParam) {
