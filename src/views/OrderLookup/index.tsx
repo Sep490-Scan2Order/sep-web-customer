@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import { ArrowLeft } from "lucide-react";
-import { MainLayout } from "@/components/ui/common";
+import { MainLayout, QrCodeModal } from "@/components/ui/common";
 import { getCustomerOrders, type CustomerOrderSummary } from "@/services/orderCustomerService";
 import { getSignalRHubUrl } from "@/services/signalr";
 
@@ -128,6 +128,7 @@ export default function OrderLookupView() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<CustomerOrderSummary[]>([]);
+  const [selectedQr, setSelectedQr] = useState<{ qrCodeUrl: string; orderCode: number } | null>(null);
 
   const connectionRef = useRef<HubConnection | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
@@ -265,8 +266,6 @@ export default function OrderLookupView() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
     async function joinAllOnListChange() {
       const conn = connectionRef.current;
       if (!conn) return;
@@ -283,9 +282,6 @@ export default function OrderLookupView() {
     }
 
     joinAllOnListChange();
-    return () => {
-      cancelled = true;
-    };
   }, [visibleOrders.length]);
 
   return (
@@ -420,14 +416,13 @@ export default function OrderLookupView() {
                                     </p>
                                     <p className="sm:text-right">
                                       {o.qrCodeUrl ? (
-                                        <a
-                                          href={o.qrCodeUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="font-semibold text-sky-700 underline"
+                                        <button
+                                          type="button"
+                                          onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
+                                          className="font-semibold text-sky-700 underline underline-offset-2 hover:text-sky-800"
                                         >
                                           Xem mã QR
-                                        </a>
+                                        </button>
                                       ) : (
                                         <span className="text-slate-400">Không có mã QR</span>
                                       )}
@@ -437,12 +432,19 @@ export default function OrderLookupView() {
 
                                 <div className="sm:text-right">
                                   {o.qrCodeUrl ? (
-                                    <img
-                                      src={o.qrCodeUrl}
-                                      alt={`QR đơn #${o.orderCode}`}
-                                      className="h-24 w-24 rounded-2xl border border-slate-200 bg-white object-cover"
-                                      loading="lazy"
-                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
+                                      className="rounded-2xl transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                                      aria-label={`Mở mã QR đơn #${o.orderCode}`}
+                                    >
+                                      <img
+                                        src={o.qrCodeUrl}
+                                        alt={`QR đơn #${o.orderCode}`}
+                                        className="h-24 w-24 rounded-2xl border border-slate-200 bg-white object-cover"
+                                        loading="lazy"
+                                      />
+                                    </button>
                                   ) : (
                                     <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-400">
                                       Không có QR
@@ -462,6 +464,13 @@ export default function OrderLookupView() {
           )}
           </div>
         </div>
+
+        <QrCodeModal
+          open={selectedQr != null}
+          onClose={() => setSelectedQr(null)}
+          qrCodeUrl={selectedQr?.qrCodeUrl ?? ""}
+          orderCode={selectedQr?.orderCode}
+        />
       </div>
     </MainLayout>
   );
