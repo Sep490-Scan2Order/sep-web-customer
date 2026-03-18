@@ -131,13 +131,17 @@ function CheckoutContent() {
       try {
         const orders = await getCustomerOrders({ restaurantId: rid, phoneNumber: r.phone, limit: 10 });
         const order = orders.find((o) => o.orderId === r.orderId);
-        if (order && order.status >= 1) setCashConfirmed(true);
+        if (order && order.status >= 1) {
+          setCashConfirmed(true);
+          window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+          if (restaurantIdParam) window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
+        }
       } catch { /* ignore */ }
     };
     checkStatus();
     const interval = setInterval(checkStatus, 3000);
     return () => clearInterval(interval);
-  }, [step, cashConfirmed, restaurantIdParam]);
+  }, [step, cashConfirmed, restaurantIdParam, cartId, restaurantIdParam]);
 
   useEffect(() => {
     if (step.kind !== "done_bank" || bankConfirmed) return;
@@ -147,7 +151,11 @@ function CheckoutContent() {
       try {
         const orders = await getCustomerOrders({ restaurantId: rid, phoneNumber: step.phone, limit: 10 });
         const order = orders.find((o) => o.orderId === step.result.orderId);
-        if (order && order.status >= 1) setBankConfirmed(true);
+        if (order && order.status >= 1) {
+          setBankConfirmed(true);
+          window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+          if (restaurantIdParam) window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
+        }
       } catch { /* ignore */ }
     };
     checkStatus();
@@ -196,10 +204,8 @@ function CheckoutContent() {
       if (SESSION_RESULT_KEY) {
         window.localStorage.setItem(SESSION_RESULT_KEY, JSON.stringify({ step: newStep, savedAt: Date.now() }));
       }
-      window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
-      if (restaurantIdParam) {
-        window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
-      }
+      // cartData và cartId chỉ xóa khi polling xác nhận hoặc user nhấn "Quay về menu"
+      // (giữ lại làm safety net phòng SESSION_RESULT_KEY bị miss)
     } catch (e: unknown) {
       const msg =
         (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
