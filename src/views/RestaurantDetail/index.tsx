@@ -352,7 +352,8 @@ export default function RestaurantDetailView({
             <button
               type="button"
               onClick={handleViewMenu}
-              className="flex w-full items-center justify-between rounded-3xl bg-gradient-to-r from-[#F58A1F] to-[#F2CE59] px-5 py-5 text-left text-xl font-bold text-white shadow-sm transition hover:brightness-95 sm:py-6 sm:text-3xl"
+              className="flex w-full items-center justify-between rounded-3xl px-5 py-5 text-left text-xl font-bold text-white shadow-sm transition hover:brightness-95 sm:py-6 sm:text-3xl"
+              style={{ background: "linear-gradient(to right, #F58A1F, #F2CE59)" }}
             >
               <span>View Menu - Order food</span>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/35 text-xl">
