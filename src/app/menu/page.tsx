@@ -2,19 +2,28 @@
 
 import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import {
   AlertCircle,
+  AlertTriangle,
+  CheckCircle2,
   Loader2,
   Minus,
   Plus,
   Search,
   ShoppingCart,
   Tags,
+  X,
 } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
 import { API, API_BASE_URL } from "@/services/api";
+import {
+  addToCart,
+  CART_DATA_STORAGE_KEY,
+  CART_ID_STORAGE_KEY,
+  type CartResponse,
+} from "@/services/orderCustomerService";
 
 type DishDto = {
   dishId: number;
@@ -253,8 +262,7 @@ function DishCard({
                 <button
                   type="button"
                   onClick={onDecrement}
-                  disabled={soldOut}
-                  className="flex h-6 w-6 items-center justify-center rounded-full disabled:opacity-40"
+                  className="flex h-6 w-6 items-center justify-center rounded-full"
                   style={{ color: themeColor }}
                 >
                   <Minus className="h-3 w-3" />
@@ -265,8 +273,7 @@ function DishCard({
                 <button
                   type="button"
                   onClick={onIncrement}
-                  disabled={soldOut}
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-white disabled:opacity-40"
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-white"
                   style={{ backgroundColor: themeColor }}
                 >
                   <Plus className="h-3 w-3" />
@@ -278,7 +285,7 @@ function DishCard({
                 onClick={onIncrement}
                 disabled={soldOut}
                 className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300 sm:px-4 sm:text-sm"
-                style={{ backgroundColor: themeColor }}
+                style={soldOut ? undefined : { backgroundColor: themeColor }}
               >
                 <Plus className="h-3 w-3" />
                 <span className="whitespace-nowrap">Thêm vào giỏ</span>
@@ -364,8 +371,56 @@ function DishCardSkeleton() {
   );
 }
 
+type ToastItem = {
+  id: number;
+  type: "success" | "warning";
+  message: string;
+};
+
+function ToastContainer({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (id: number) => void }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed right-3 top-16 z-[60] flex flex-col gap-2 sm:right-4 sm:top-20">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 shadow-lg backdrop-blur-sm transition-all sm:px-4 sm:py-3 ${
+            t.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}
+          style={{ minWidth: "220px", maxWidth: "320px" }}
+        >
+          <span className="mt-0.5 shrink-0">
+            {t.type === "success" ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            )}
+          </span>
+          <p className="flex-1 text-xs font-semibold leading-snug sm:text-sm">{t.message}</p>
+          <button
+            type="button"
+            onClick={() => onRemove(t.id)}
+            className="shrink-0 opacity-50 hover:opacity-100"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type StockWarning = {
+  dishName: string;
+  sentQty: number;
+  actualQty: number;
+};
+
 // BƯỚC 1: Tách logic chính ra một component riêng (MenuContent)
 function MenuContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const restaurantParamRaw = searchParams.get("restaurant") ?? "";
   const restaurantParam = restaurantParamRaw
@@ -373,9 +428,17 @@ function MenuContent() {
     : "";
 
   const [state, setState] = useState<FetchState>({ status: "idle" });
+  const [restaurantId, setRestaurantId] = useState<number | null>(null);
   const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [quantities, setQuantities] = useState<Record<number, number>>({});
+
+  // Cart API states
+  const [cartLoading, setCartLoading] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
+  const [cartData, setCartData] = useState<CartResponse | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastIdRef = { current: 0 };
 
   useEffect(() => {
     if (!restaurantParam) {
@@ -402,6 +465,7 @@ function MenuContent() {
         if (!restaurantId) {
           throw new Error("Dữ liệu nhà hàng không hợp lệ (không có id).");
         }
+        if (!cancelled) setRestaurantId(restaurantId);
 
         const res = await fetch(
           `${API_BASE_URL}/MenuTemplate/restaurant/${restaurantId}/template`
@@ -529,6 +593,142 @@ function MenuContent() {
     });
   };
 
+  // Tất cả món trong menu (để tra tên khi cần)
+  const allDishes = useMemo(
+    () => categories.flatMap((c) => c.dishes),
+    [categories]
+  );
+
+  const totalSelectedItems = useMemo(
+    () => Object.values(quantities).reduce((s, q) => s + q, 0),
+    [quantities]
+  );
+
+  const totalAmount = useMemo(
+    () =>
+      Object.entries(quantities).reduce((sum, [dishIdStr, qty]) => {
+        const id = parseInt(dishIdStr, 10);
+        const dish = allDishes.find((d) => d.dishId === id);
+        if (!dish) return sum;
+        const price =
+          dish.hasPromotion && dish.discountedPrice && dish.discountedPrice > 0
+            ? dish.discountedPrice
+            : dish.price;
+        return sum + price * qty;
+      }, 0),
+    [quantities, allDishes]
+  );
+
+  function pushToast(type: ToastItem["type"], message: string) {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }
+
+  function removeToast(id: number) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  async function handleAddToCart() {
+    if (!restaurantId) return;
+    setCartLoading(true);
+    setCartError(null);
+
+    const storageKey = CART_ID_STORAGE_KEY(restaurantId);
+    let cartId: string | null =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(storageKey)
+        : null;
+
+    // Ghi lại những gì FE đã gửi để so sánh với response sau
+    const sentMap: Record<number, { dishName: string; qty: number }> = {};
+
+    try {
+      let lastCart: CartResponse | null = null;
+
+      for (const [dishIdStr, quantity] of Object.entries(quantities)) {
+        const dishId = parseInt(dishIdStr, 10);
+        if (isNaN(dishId) || quantity <= 0) continue;
+
+        const dish = allDishes.find((d) => d.dishId === dishId);
+        if (!dish) continue;
+
+        sentMap[dishId] = { dishName: dish.dishName, qty: quantity };
+
+        const result = await addToCart({
+          restaurantId,
+          dishId,
+          quantity,
+          cartId,
+        });
+
+        cartId = result.cartId;
+        lastCart = result;
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(storageKey, cartId);
+        }
+      }
+
+      if (lastCart) {
+        // So sánh sent vs response để phát hiện điều chỉnh tồn kho
+        const warnings: StockWarning[] = [];
+        for (const [dishIdStr, info] of Object.entries(sentMap)) {
+          const dishId = parseInt(dishIdStr, 10);
+          const responseItem = lastCart.items.find((i) => i.dishId === dishId);
+          if (!responseItem) {
+            warnings.push({ dishName: info.dishName, sentQty: info.qty, actualQty: 0 });
+          } else if (responseItem.quantity < info.qty) {
+            warnings.push({
+              dishName: info.dishName,
+              sentQty: info.qty,
+              actualQty: responseItem.quantity,
+            });
+          }
+        }
+
+        // Hiện toast cảnh báo tồn kho
+        for (const w of warnings) {
+          if (w.actualQty === 0) {
+            pushToast("warning", `"${w.dishName}" đã hết hàng, bị xóa khỏi giỏ.`);
+          } else {
+            pushToast(
+              "warning",
+              `"${w.dishName}" chỉ còn ${w.actualQty} (bạn chọn ${w.sentQty}), đã điều chỉnh lại.`
+            );
+          }
+        }
+
+        // Toast thành công nếu không có cảnh báo
+        if (warnings.length === 0) {
+          pushToast("success", `Đã thêm ${Object.keys(sentMap).length} món vào giỏ hàng!`);
+        }
+
+        setCartData(lastCart);
+        setQuantities({});
+
+        // Lưu cart data vào localStorage để trang checkout đọc sau
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            CART_DATA_STORAGE_KEY(lastCart.cartId),
+            JSON.stringify(lastCart)
+          );
+        }
+      }
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ||
+        (e as Error)?.message ||
+        "Không thể thêm vào giỏ. Vui lòng thử lại.";
+      setCartError(msg);
+    } finally {
+      setCartLoading(false);
+    }
+  }
+
   const canvasConfig: LayoutCanvasConfig =
     state.status === "success"
       ? (() => {
@@ -597,7 +797,17 @@ function MenuContent() {
           </div>
           <button
             type="button"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-sm"
+            onClick={() => {
+              if (cartData) {
+                const params = new URLSearchParams({
+                  cartId: cartData.cartId,
+                  restaurant: restaurantParam,
+                  ...(restaurantId ? { restaurantId: String(restaurantId) } : {}),
+                });
+                router.push(`/checkout?${params.toString()}`);
+              }
+            }}
+            className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-sm transition"
             aria-label="Giỏ hàng"
             style={{
               borderColor: `${themeColor}40`,
@@ -606,6 +816,15 @@ function MenuContent() {
             }}
           >
             <ShoppingCart className="h-4 w-4" />
+            {cartData && (() => {
+              const count = cartData.items.reduce((s, i) => s + i.quantity, 0);
+              if (count === 0) return null;
+              return (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-extrabold text-white shadow">
+                  {count > 99 ? "99+" : count}
+                </span>
+              );
+            })()}
           </button>
         </div>
       </header>
@@ -682,7 +901,68 @@ function MenuContent() {
             <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
           </div>
         )}
+
+        {/* Khoảng trống để sticky bar không che nội dung */}
+        {totalSelectedItems > 0 && <div className="h-20" />}
       </main>
+
+      {/* Sticky bar — hiện khi có món trong giỏ */}
+      {totalSelectedItems > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 shadow-2xl">
+          <div
+            className="px-3 py-3 sm:px-4"
+            style={{ background: `linear-gradient(to right, ${themeColor}, ${themeColor}cc)` }}
+          >
+            <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/25">
+                  <ShoppingCart className="h-5 w-5 text-white" />
+                  <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[11px] font-extrabold text-white shadow">
+                    {totalSelectedItems}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white/80">
+                    {Object.keys(quantities).length} món đã chọn
+                  </p>
+                  <p className="text-base font-extrabold text-white">
+                    {formatVND(totalAmount)}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={cartLoading}
+                onClick={handleAddToCart}
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-extrabold shadow-md transition active:scale-95 disabled:opacity-60 sm:px-6 sm:py-3 sm:text-base"
+                style={{ color: themeColor }}
+              >
+                {cartLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>Đang xử lý…</span>
+                  </>
+                ) : (
+                  <>
+                    <ShoppingCart className="h-4 w-4" />
+                    <span>Thêm vào giỏ</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {cartError && (
+              <p className="mt-1.5 text-center text-xs font-semibold text-white/90">
+                ⚠ {cartError}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast notifications góc phải */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

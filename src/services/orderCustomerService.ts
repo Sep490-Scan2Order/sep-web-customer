@@ -9,6 +9,98 @@ type ApiResponse<T> = {
   timestamp?: string;
 };
 
+export type AddToCartRequest = {
+  restaurantId: number;
+  dishId: number;
+  quantity: number;
+  note?: string | null;
+  cartId?: string | null;
+};
+
+export type CartItem = {
+  dishId: number;
+  dishName: string;
+  quantity: number;
+  discountedPrice: number;
+  originalPrice: number;
+  promotionAmount: number;
+  promotionName: string | null;
+  subTotal: number;
+};
+
+export type CartResponse = {
+  cartId: string;
+  restaurantId: number;
+  totalAmount: number;
+  items: CartItem[];
+};
+
+export const CART_ID_STORAGE_KEY = (restaurantId: number | string) =>
+  `s2o_cart_id_${restaurantId}`;
+
+export const CART_DATA_STORAGE_KEY = (cartId: string) =>
+  `s2o_cart_data_${cartId}`;
+
+export async function addToCart(req: AddToCartRequest): Promise<CartResponse> {
+  const { data } = await api.post<ApiResponse<CartResponse>>(
+    API.ORDER.ADD_TO_CART,
+    req,
+    { _skipAuth: true } as unknown as Record<string, unknown>
+  );
+  if (!data.isSuccess) {
+    throw new Error(data.message || "Không thể thêm vào giỏ hàng.");
+  }
+  return data.data;
+}
+
+export type CheckoutRequest = {
+  cartId: string;
+  phone: string;
+};
+
+export type CheckoutCashResponse = {
+  orderId: string;
+  orderCode: number;
+  totalAmount: number;
+  restaurantName: string;
+  phone: string;
+  note: string | null;
+  qrCodeBase64: string | null;
+};
+
+export type CheckoutBankTransferResponse = {
+  orderId: string;
+  qrUrl: string | null;
+  paymentCode: string;
+  totalAmount: number;
+  restaurantName: string;
+  qrCodeBase64: string | null;
+};
+
+export async function checkoutCash(req: CheckoutRequest): Promise<CheckoutCashResponse> {
+  const { data } = await api.post<ApiResponse<CheckoutCashResponse>>(
+    API.ORDER.CHECKOUT_CASH,
+    req,
+    { _skipAuth: true } as unknown as Record<string, unknown>
+  );
+  if (!data.isSuccess) {
+    throw new Error(data.message || "Thanh toán thất bại.");
+  }
+  return data.data;
+}
+
+export async function checkoutBankTransfer(req: CheckoutRequest): Promise<CheckoutBankTransferResponse> {
+  const { data } = await api.post<ApiResponse<CheckoutBankTransferResponse>>(
+    API.ORDER.CHECKOUT_BANK_TRANSFER,
+    req,
+    { _skipAuth: true } as unknown as Record<string, unknown>
+  );
+  if (!data.isSuccess) {
+    throw new Error(data.message || "Thanh toán thất bại.");
+  }
+  return data.data;
+}
+
 export type CustomerOrderSummary = {
   orderId: string;
   orderCode: number;
