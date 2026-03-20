@@ -19,7 +19,8 @@ import {
 import {
   checkoutBankTransfer,
   checkoutCash,
-  getCustomerOrders,
+  getCustomerActiveOrders,
+  getCustomerOrderHistory,
   CART_DATA_STORAGE_KEY,
   CART_ID_STORAGE_KEY,
   type CartItem,
@@ -129,8 +130,23 @@ function CheckoutContent() {
     if (!rid || !r.phone) return;
     const checkStatus = async () => {
       try {
-        const orders = await getCustomerOrders({ restaurantId: rid, phoneNumber: r.phone, limit: 10 });
-        const order = orders.find((o) => o.orderId === r.orderId);
+        const activeOrders = await getCustomerActiveOrders({
+          restaurantId: rid,
+          phoneNumber: r.phone,
+          limit: 10,
+        });
+        let order = activeOrders.find((o) => o.orderId === r.orderId);
+
+        // Fallback: nếu đơn đã vào Served/Cancelled nhưng có thể bị ẩn trong active > 15 phút.
+        if (!order) {
+          const historyOrders = await getCustomerOrderHistory({
+            restaurantId: rid,
+            phoneNumber: r.phone,
+            limit: 50,
+          });
+          order = historyOrders.find((o) => o.orderId === r.orderId);
+        }
+
         if (order && order.status >= 1) {
           setCashConfirmed(true);
           window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
@@ -149,8 +165,23 @@ function CheckoutContent() {
     if (!rid || !step.phone) return;
     const checkStatus = async () => {
       try {
-        const orders = await getCustomerOrders({ restaurantId: rid, phoneNumber: step.phone, limit: 10 });
-        const order = orders.find((o) => o.orderId === step.result.orderId);
+        const activeOrders = await getCustomerActiveOrders({
+          restaurantId: rid,
+          phoneNumber: step.phone,
+          limit: 10,
+        });
+        let order = activeOrders.find((o) => o.orderId === step.result.orderId);
+
+        // Fallback: nếu đơn đã vào Served/Cancelled nhưng có thể bị ẩn trong active > 15 phút.
+        if (!order) {
+          const historyOrders = await getCustomerOrderHistory({
+            restaurantId: rid,
+            phoneNumber: step.phone,
+            limit: 50,
+          });
+          order = historyOrders.find((o) => o.orderId === step.result.orderId);
+        }
+
         if (order && order.status >= 1) {
           setBankConfirmed(true);
           window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));

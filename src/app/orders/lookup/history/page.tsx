@@ -12,7 +12,7 @@ export default function Page() {
         </div>
       }
     >
-      <OrderLookupView mode="active" />
+      <OrderLookupView mode="history" />
     </Suspense>
   );
 }

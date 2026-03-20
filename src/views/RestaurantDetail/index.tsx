@@ -82,6 +82,7 @@ export default function RestaurantDetailView({
   const [menuOpened] = useState(initialMenuOpened);
   const [now, setNow] = useState<Date>(new Date());
   const [showOrderLookup, setShowOrderLookup] = useState(false);
+  const [orderLookupTab, setOrderLookupTab] = useState<"active" | "history">("active");
   const [lookupPhone, setLookupPhone] = useState("");
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [outdoorTemp, setOutdoorTemp] = useState<number | null>(null);
@@ -327,6 +328,7 @@ export default function RestaurantDetailView({
               onClick={() => {
                 setLookupError(null);
                 setLookupPhone("");
+                setOrderLookupTab("active");
                 setShowOrderLookup(true);
               }}
               className="flex h-20 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-xs font-semibold text-slate-700 shadow-sm"
@@ -339,6 +341,12 @@ export default function RestaurantDetailView({
 
             <button
               type="button"
+              onClick={() => {
+                setLookupError(null);
+                setLookupPhone("");
+                setOrderLookupTab("history");
+                setShowOrderLookup(true);
+              }}
               className="flex h-20 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-xs font-semibold text-slate-600 shadow-sm"
             >
               <Clock className="h-5 w-5 text-slate-500" />
@@ -434,8 +442,13 @@ export default function RestaurantDetailView({
                   return;
                 }
                 setShowOrderLookup(false);
+                const base =
+                  orderLookupTab === "history"
+                    ? "/orders/lookup/history"
+                    : "/orders/lookup";
+
                 router.push(
-                  `/orders/lookup?restaurantId=${encodeURIComponent(String(r.id))}&restaurantSlug=${encodeURIComponent(
+                  `${base}?restaurantId=${encodeURIComponent(String(r.id))}&restaurantSlug=${encodeURIComponent(
                     r.slug
                   )}&phoneNumber=${encodeURIComponent(phone)}`
                 );

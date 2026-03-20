@@ -6,7 +6,11 @@ import { useSearchParams } from "next/navigation";
 import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import { ArrowLeft } from "lucide-react";
 import { MainLayout, QrCodeModal } from "@/components/ui/common";
-import { getCustomerOrders, type CustomerOrderSummary } from "@/services/orderCustomerService";
+import {
+  getCustomerActiveOrders,
+  getCustomerOrderHistory,
+  type CustomerOrderSummary,
+} from "@/services/orderCustomerService";
 import { getSignalRHubUrl } from "@/services/signalr";
 
 type CustomerUpdateStatusPayload = {
@@ -92,13 +96,11 @@ function statusStyle(status: number): {
   }
 }
 
-function isHiddenAfterOneHour(order: CustomerOrderSummary, nowMs: number): boolean {
-  const isServedOrCancelled = order.status === 4 || order.status === 5;
-  if (!isServedOrCancelled) return false;
-  const createdMs = Date.parse(order.createdAt);
-  if (Number.isNaN(createdMs)) return false;
-  return nowMs - createdMs > 60 * 60 * 1000;
-}
+type OrderLookupMode = "active" | "history";
+
+type OrderLookupViewProps = {
+  mode?: OrderLookupMode;
+};
 
 function formatMoneyVnd(amount: number): string {
   try {
@@ -110,16 +112,24 @@ function formatMoneyVnd(amount: number): string {
 
 function renderLinePrice(line: {
   originalPrice: number;
+  quantity: number;
+  subTotal: number;
   discountedPrice?: number | null;
 }): { original: number; discounted: number | null } {
-  const d = line.discountedPrice;
-  if (typeof d === "number" && Number.isFinite(d) && d >= 0 && d < line.originalPrice) {
-    return { original: line.originalPrice, discounted: d };
+  const originalLineTotal = line.originalPrice * line.quantity;
+  const discountedLineTotal = line.subTotal;
+
+  if (
+    Number.isFinite(discountedLineTotal) &&
+    discountedLineTotal > 0 &&
+    discountedLineTotal < originalLineTotal
+  ) {
+    return { original: originalLineTotal, discounted: discountedLineTotal };
   }
-  return { original: line.originalPrice, discounted: null };
+  return { original: Number.isFinite(discountedLineTotal) && discountedLineTotal > 0 ? discountedLineTotal : originalLineTotal, discounted: null };
 }
 
-export default function OrderLookupView() {
+export default function OrderLookupView({ mode = "active" }: OrderLookupViewProps) {
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId") ?? "";
   const restaurantSlug = searchParams.get("restaurantSlug") ?? "";
@@ -134,26 +144,23 @@ export default function OrderLookupView() {
   const startPromiseRef = useRef<Promise<void> | null>(null);
   const visibleOrderIdsRef = useRef<string[]>([]);
 
-  const visibleOrders = useMemo(() => {
-    const nowMs = Date.now();
-    return orders.filter((o) => !isHiddenAfterOneHour(o, nowMs));
-  }, [orders]);
+  const statusTabs = useMemo(() => (mode === "history" ? [4, 5] : [0, 1, 2, 3, 4, 5]), [mode]);
+  const [selectedStatus, setSelectedStatus] = useState<number>(() => statusTabs[0] ?? 0);
+
+  useEffect(() => {
+    setSelectedStatus(statusTabs[0] ?? 0);
+  }, [mode, statusTabs]);
+
+  const visibleOrders = useMemo(
+    () => orders.filter((o) => o.status === selectedStatus),
+    [orders, selectedStatus]
+  );
 
   useEffect(() => {
     visibleOrderIdsRef.current = visibleOrders.map((o) => o.orderId).filter(Boolean);
   }, [visibleOrders]);
 
-  const groupedOrders = useMemo(() => {
-    const groups: Record<number, CustomerOrderSummary[]> = {};
-    for (const o of visibleOrders) {
-      (groups[o.status] ||= []).push(o);
-    }
-
-    const order = [1, 2, 3, 0, 4, 5];
-    return order
-      .map((status) => ({ status, items: (groups[status] ?? []).slice() }))
-      .filter((g) => g.items.length > 0);
-  }, [visibleOrders]);
+  // Note: UI giờ chỉ render theo selectedStatus, không còn grouped theo tab.
 
   const backHref = restaurantSlug
     ? `/restaurants/${encodeURIComponent(restaurantSlug)}`
@@ -172,11 +179,11 @@ export default function OrderLookupView() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getCustomerOrders({
-          restaurantId,
-          phoneNumber,
-          limit: 20,
-        });
+        const limit = mode === "history" ? 50 : 20;
+        const data =
+          mode === "history"
+            ? await getCustomerOrderHistory({ restaurantId, phoneNumber, limit })
+            : await getCustomerActiveOrders({ restaurantId, phoneNumber, limit });
         if (!cancelled) {
           setOrders(data);
         }
@@ -196,7 +203,31 @@ export default function OrderLookupView() {
     return () => {
       cancelled = true;
     };
-  }, [restaurantId, phoneNumber]);
+  }, [restaurantId, phoneNumber, mode]);
+
+  // Tab "active" cần polling để Served/Cancelled tự biến mất theo cutoff 1 giờ của BE.
+  useEffect(() => {
+    if (!restaurantId || !phoneNumber) return;
+    if (mode !== "active") return;
+
+    let cancelled = false;
+
+    async function poll() {
+      try {
+        const limit = 20;
+        const data = await getCustomerActiveOrders({ restaurantId, phoneNumber, limit });
+        if (!cancelled) setOrders(data);
+      } catch {
+        // bỏ qua lỗi polling để không làm UI nhảy liên tục
+      }
+    }
+
+    const interval = window.setInterval(poll, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [restaurantId, phoneNumber, mode]);
 
   useEffect(() => {
     let stopped = false;
@@ -305,163 +336,177 @@ export default function OrderLookupView() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
-          {!restaurantId || !phoneNumber ? (
-            <p className="text-sm text-slate-600">
-              Thiếu thông tin tra cứu. Vui lòng quay lại trang nhà hàng và nhập SĐT.
-            </p>
-          ) : loading ? (
-            <p className="text-sm text-slate-600">Đang tải danh sách đơn…</p>
-          ) : error ? (
-            <p className="text-sm font-semibold text-rose-600">{error}</p>
-          ) : visibleOrders.length === 0 ? (
-            <p className="text-sm text-slate-600">Không có đơn nào gần đây để theo dõi.</p>
-          ) : (
-            <div className="space-y-4">
-              {groupedOrders.map((g) => {
-                const s = statusStyle(g.status);
-                return (
-                  <section key={g.status} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
-                        <p className={`text-sm font-extrabold ${s.section}`}>{statusLabel(g.status)}</p>
-                      </div>
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
-                        {g.items.length}
+            <div className="mb-3 overflow-x-auto rounded-xl bg-slate-50 p-1">
+              <div className="flex min-w-max flex-nowrap gap-1">
+                {statusTabs.map((s) => {
+                  const sStyle = statusStyle(s);
+                  const count = orders.filter((o) => o.status === s).length;
+                  const isActive = selectedStatus === s;
+
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSelectedStatus(s)}
+                      className={`flex flex-shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition ${
+                        isActive
+                          ? "bg-orange-500 text-white shadow-sm"
+                          : "bg-transparent text-slate-600 hover:bg-white"
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 whitespace-nowrap">
+                        <span className={`h-2.5 w-2.5 rounded-full ${sStyle.dot}`} />
+                        <span className="whitespace-nowrap">{statusLabel(s)}</span>
                       </span>
-                    </div>
-
-                    <ul className="grid grid-cols-1 gap-3">
-                      {g.items.map((o) => {
-                        const styles = statusStyle(o.status);
-                        const createdText = (() => {
-                          try {
-                            return new Date(o.createdAt).toLocaleString("vi-VN");
-                          } catch {
-                            return o.createdAt;
-                          }
-                        })();
-                        return (
-                          <li key={o.orderId}>
-                            <div className={`w-full rounded-2xl border p-3 shadow-sm ${styles.card}`}>
-                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-base font-extrabold text-slate-900">
-                                      Đơn #{o.orderCode}
-                                    </p>
-                                  </div>
-
-                                  <p className="mt-1 text-sm text-slate-600">Tạo lúc: {createdText}</p>
-
-                                  {Array.isArray(o.orderDetails) && o.orderDetails.length > 0 && (
-                                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                      <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                                        Món đã đặt
-                                      </p>
-                                      <ul className="mt-2 space-y-2">
-                                        {o.orderDetails.map((d) => {
-                                          const price = renderLinePrice(d);
-                                          return (
-                                            <li key={`${o.orderId}-${d.dishId}`} className="flex items-start justify-between gap-3">
-                                              <div className="flex min-w-0 items-start gap-2">
-                                                {d.imageUrl ? (
-                                                  <img
-                                                    src={d.imageUrl}
-                                                    alt={d.dishName}
-                                                    className="mt-0.5 h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover"
-                                                    loading="lazy"
-                                                  />
-                                                ) : (
-                                                  <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-400">
-                                                    Ảnh
-                                                  </div>
-                                                )}
-                                                <div className="min-w-0">
-                                                  <p className="truncate text-sm font-semibold text-slate-900">
-                                                    {d.dishName}
-                                                  </p>
-                                                  <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                                                    x {d.quantity}
-                                                  </p>
-                                                </div>
-                                              </div>
-                                              <div className="shrink-0 text-right">
-                                                {price.discounted != null ? (
-                                                  <div className="space-x-2">
-                                                    <span className="text-xs font-semibold text-slate-400 line-through">
-                                                      {formatMoneyVnd(price.original)}
-                                                    </span>
-                                                    <span className="text-sm font-extrabold text-slate-900">
-                                                      {formatMoneyVnd(price.discounted)}
-                                                    </span>
-                                                  </div>
-                                                ) : (
-                                                  <span className="text-sm font-extrabold text-slate-900">
-                                                    {formatMoneyVnd(price.original)}
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </li>
-                                          );
-                                        })}
-                                      </ul>
-                                    </div>
-                                  )}
-
-                                  <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-slate-800 sm:grid-cols-2">
-                                    <p className="font-bold">
-                                      <span className="font-semibold text-slate-500">Tổng cộng:</span>{" "}
-                                      {formatMoneyVnd(o.finalAmount)}
-                                    </p>
-                                    <p className="sm:text-right">
-                                      {o.qrCodeUrl ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
-                                          className="font-semibold text-sky-700 underline underline-offset-2 hover:text-sky-800"
-                                        >
-                                          Xem mã QR
-                                        </button>
-                                      ) : (
-                                        <span className="text-slate-400">Không có mã QR</span>
-                                      )}
-                                    </p>
-                                  </div>
-                                </div>
-
-                                <div className="sm:text-right">
-                                  {o.qrCodeUrl ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
-                                      className="rounded-2xl transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                                      aria-label={`Mở mã QR đơn #${o.orderCode}`}
-                                    >
-                                      <img
-                                        src={o.qrCodeUrl}
-                                        alt={`QR đơn #${o.orderCode}`}
-                                        className="h-24 w-24 rounded-2xl border border-slate-200 bg-white object-cover"
-                                        loading="lazy"
-                                      />
-                                    </button>
-                                  ) : (
-                                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-400">
-                                      Không có QR
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                );
-              })}
+                      <span
+                        className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-bold ${
+                          isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
+
+            {!restaurantId || !phoneNumber ? (
+              <p className="text-sm text-slate-600">
+                Thiếu thông tin tra cứu. Vui lòng quay lại trang nhà hàng và nhập SĐT.
+              </p>
+            ) : loading ? (
+              <p className="text-sm text-slate-600">Đang tải danh sách đơn…</p>
+            ) : error ? (
+              <p className="text-sm font-semibold text-rose-600">{error}</p>
+            ) : visibleOrders.length === 0 ? (
+              <p className="text-sm text-slate-600">Không có đơn ở trạng thái này.</p>
+            ) : (
+              <ul className="grid grid-cols-1 gap-3">
+                {visibleOrders.map((o) => {
+                  const styles = statusStyle(o.status);
+                  const createdText = (() => {
+                    try {
+                      return new Date(o.createdAt).toLocaleString("vi-VN");
+                    } catch {
+                      return o.createdAt;
+                    }
+                  })();
+
+                  return (
+                    <li key={o.orderId}>
+                      <div className={`w-full rounded-2xl border p-3 shadow-sm ${styles.card}`}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-base font-extrabold text-slate-900">Đơn #{o.orderCode}</p>
+                            </div>
+
+                            <p className="mt-1 text-sm text-slate-600">Tạo lúc: {createdText}</p>
+
+                            {Array.isArray(o.orderDetails) && o.orderDetails.length > 0 && (
+                              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                                  Món đã đặt
+                                </p>
+                                <ul className="mt-2 space-y-2">
+                                  {o.orderDetails.map((d) => {
+                                    const price = renderLinePrice(d);
+                                    return (
+                                      <li
+                                        key={`${o.orderId}-${d.dishId}`}
+                                        className="flex items-start justify-between gap-3"
+                                      >
+                                        <div className="flex min-w-0 items-start gap-2">
+                                          {d.imageUrl ? (
+                                            <img
+                                              src={d.imageUrl}
+                                              alt={d.dishName}
+                                              className="mt-0.5 h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover"
+                                              loading="lazy"
+                                            />
+                                          ) : (
+                                            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-400">
+                                              Ảnh
+                                            </div>
+                                          )}
+                                          <div className="min-w-0">
+                                            <p className="truncate text-sm font-semibold text-slate-900">{d.dishName}</p>
+                                            <p className="mt-0.5 text-xs font-semibold text-slate-500">x {d.quantity}</p>
+                                          </div>
+                                        </div>
+                                        <div className="shrink-0 text-right">
+                                          {price.discounted != null ? (
+                                            <div className="space-x-2">
+                                              <span className="text-xs font-semibold text-slate-400 line-through">
+                                                {formatMoneyVnd(price.original)}
+                                              </span>
+                                              <span className="text-sm font-extrabold text-slate-900">
+                                                {formatMoneyVnd(price.discounted)}
+                                              </span>
+                                            </div>
+                                          ) : (
+                                            <span className="text-sm font-extrabold text-slate-900">
+                                              {formatMoneyVnd(price.original)}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </div>
+                            )}
+
+                            <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-slate-800 sm:grid-cols-2">
+                              <p className="font-bold">
+                                <span className="font-semibold text-slate-500">Tổng cộng:</span>{" "}
+                                {formatMoneyVnd(o.finalAmount)}
+                              </p>
+                              <p className="sm:text-right">
+                                {o.qrCodeUrl ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
+                                    className="font-semibold text-sky-700 underline underline-offset-2 hover:text-sky-800"
+                                  >
+                                    Xem mã QR
+                                  </button>
+                                ) : (
+                                  <span className="text-slate-400">Không có mã QR</span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="sm:text-right">
+                            {o.qrCodeUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
+                                className="rounded-2xl transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                                aria-label={`Mở mã QR đơn #${o.orderCode}`}
+                              >
+                                <img
+                                  src={o.qrCodeUrl}
+                                  alt={`QR đơn #${o.orderCode}`}
+                                  className="h-24 w-24 rounded-2xl border border-slate-200 bg-white object-cover"
+                                  loading="lazy"
+                                />
+                              </button>
+                            ) : (
+                              <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-400">
+                                Không có QR
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
 

@@ -106,6 +106,7 @@ export type CustomerOrderSummary = {
   orderCode: number;
   status: number;
   createdAt: string;
+  updatedAt?: string | null;
   finalAmount: number;
   qrCodeUrl: string;
   orderDetails?: Array<{
@@ -119,13 +120,13 @@ export type CustomerOrderSummary = {
   }>;
 };
 
-export async function getCustomerOrders(params: {
+export async function getCustomerActiveOrders(params: {
   restaurantId: number | string;
   phoneNumber: string;
   limit?: number;
 }): Promise<CustomerOrderSummary[]> {
   const { data } = await api.get<ApiResponse<CustomerOrderSummary[]>>(
-    API.ORDER.CUSTOMER_GET_ORDERS,
+    API.ORDER.CUSTOMER_GET_ORDERS_ACTIVE,
     {
       params: {
         restaurantId: params.restaurantId,
@@ -138,5 +139,35 @@ export async function getCustomerOrders(params: {
   );
 
   return Array.isArray(data.data) ? data.data : [];
+}
+
+export async function getCustomerOrderHistory(params: {
+  restaurantId: number | string;
+  phoneNumber: string;
+  limit?: number;
+}): Promise<CustomerOrderSummary[]> {
+  const { data } = await api.get<ApiResponse<CustomerOrderSummary[]>>(
+    API.ORDER.CUSTOMER_GET_ORDERS_HISTORY,
+    {
+      params: {
+        restaurantId: params.restaurantId,
+        phone: params.phoneNumber,
+        limit: params.limit ?? 50,
+      },
+      // khách tra cứu theo SĐT không cần token
+      _skipAuth: true,
+    } as unknown as Record<string, unknown>
+  );
+
+  return Array.isArray(data.data) ? data.data : [];
+}
+
+// Backward compatible alias (active orders).
+export async function getCustomerOrders(params: {
+  restaurantId: number | string;
+  phoneNumber: string;
+  limit?: number;
+}): Promise<CustomerOrderSummary[]> {
+  return getCustomerActiveOrders(params);
 }
 
