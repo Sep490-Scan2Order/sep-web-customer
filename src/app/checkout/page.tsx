@@ -20,7 +20,6 @@ import {
   checkoutBankTransfer,
   checkoutCash,
   getCustomerActiveOrders,
-  getCustomerOrderHistory,
   CART_DATA_STORAGE_KEY,
   CART_ID_STORAGE_KEY,
   type CartItem,
@@ -133,19 +132,8 @@ function CheckoutContent() {
         const activeOrders = await getCustomerActiveOrders({
           restaurantId: rid,
           phoneNumber: r.phone,
-          limit: 10,
         });
-        let order = activeOrders.find((o) => o.orderId === r.orderId);
-
-        // Fallback: nếu đơn đã vào Served/Cancelled nhưng có thể bị ẩn trong active > 15 phút.
-        if (!order) {
-          const historyOrders = await getCustomerOrderHistory({
-            restaurantId: rid,
-            phoneNumber: r.phone,
-            limit: 50,
-          });
-          order = historyOrders.find((o) => o.orderId === r.orderId);
-        }
+        const order = activeOrders.find((o) => o.orderId === r.orderId);
 
         if (order && order.status >= 1) {
           setCashConfirmed(true);
@@ -168,19 +156,8 @@ function CheckoutContent() {
         const activeOrders = await getCustomerActiveOrders({
           restaurantId: rid,
           phoneNumber: step.phone,
-          limit: 10,
         });
-        let order = activeOrders.find((o) => o.orderId === step.result.orderId);
-
-        // Fallback: nếu đơn đã vào Served/Cancelled nhưng có thể bị ẩn trong active > 15 phút.
-        if (!order) {
-          const historyOrders = await getCustomerOrderHistory({
-            restaurantId: rid,
-            phoneNumber: step.phone,
-            limit: 50,
-          });
-          order = historyOrders.find((o) => o.orderId === step.result.orderId);
-        }
+        const order = activeOrders.find((o) => o.orderId === step.result.orderId);
 
         if (order && order.status >= 1) {
           setBankConfirmed(true);

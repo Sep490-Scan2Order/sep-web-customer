@@ -102,6 +102,7 @@ export async function checkoutBankTransfer(req: CheckoutRequest): Promise<Checko
 }
 
 export type CustomerOrderSummary = {
+  restaurantId?: number;
   orderId: string;
   orderCode: number;
   status: number;
@@ -109,6 +110,10 @@ export type CustomerOrderSummary = {
   updatedAt?: string | null;
   finalAmount: number;
   qrCodeUrl: string;
+  typeOrder?: number;
+  refundType?: number | null;
+  refundOrderId?: string | null;
+  isRefundLog?: boolean;
   orderDetails?: Array<{
     dishId: number;
     dishName: string;
@@ -120,20 +125,22 @@ export type CustomerOrderSummary = {
   }>;
 };
 
+/**
+ * Tra cứu đơn theo SĐT + nhà hàng (AllowAnonymous).
+ * Backend trả toàn bộ đơn thỏa điều kiện, không còn tham số limit.
+ */
 export async function getCustomerActiveOrders(params: {
   restaurantId: number | string;
   phoneNumber: string;
-  limit?: number;
 }): Promise<CustomerOrderSummary[]> {
+  const phone = params.phoneNumber.trim();
   const { data } = await api.get<ApiResponse<CustomerOrderSummary[]>>(
     API.ORDER.CUSTOMER_GET_ORDERS_ACTIVE,
     {
       params: {
         restaurantId: params.restaurantId,
-        phone: params.phoneNumber,
-        limit: params.limit ?? 20,
+        phone,
       },
-      // khách tra cứu theo SĐT không cần token
       _skipAuth: true,
     } as unknown as Record<string, unknown>
   );
@@ -141,33 +148,10 @@ export async function getCustomerActiveOrders(params: {
   return Array.isArray(data.data) ? data.data : [];
 }
 
-export async function getCustomerOrderHistory(params: {
-  restaurantId: number | string;
-  phoneNumber: string;
-  limit?: number;
-}): Promise<CustomerOrderSummary[]> {
-  const { data } = await api.get<ApiResponse<CustomerOrderSummary[]>>(
-    API.ORDER.CUSTOMER_GET_ORDERS_HISTORY,
-    {
-      params: {
-        restaurantId: params.restaurantId,
-        phone: params.phoneNumber,
-        limit: params.limit ?? 50,
-      },
-      // khách tra cứu theo SĐT không cần token
-      _skipAuth: true,
-    } as unknown as Record<string, unknown>
-  );
-
-  return Array.isArray(data.data) ? data.data : [];
-}
-
-// Backward compatible alias (active orders).
+/** Alias — cùng endpoint active. */
 export async function getCustomerOrders(params: {
   restaurantId: number | string;
   phoneNumber: string;
-  limit?: number;
 }): Promise<CustomerOrderSummary[]> {
   return getCustomerActiveOrders(params);
 }
-

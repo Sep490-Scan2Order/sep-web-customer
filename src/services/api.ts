@@ -18,7 +18,6 @@ export const API = {
     },
     ORDER: {
         CUSTOMER_GET_ORDERS_ACTIVE: "/Order/customer/orders/active",
-        CUSTOMER_GET_ORDERS_HISTORY: "/Order/customer/orders/history",
         ADD_TO_CART: "/order/add-to-cart",
         CHECKOUT_CASH: "/order/checkout/cash",
         CHECKOUT_BANK_TRANSFER: "/order/checkout/bank-transfer",

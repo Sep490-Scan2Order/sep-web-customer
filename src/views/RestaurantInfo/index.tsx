@@ -111,7 +111,7 @@ export default function RestaurantInfoView({
           typeof dish.discountedPrice === "number" &&
           dish.discountedPrice > 0 &&
           dish.discountedPrice !== dish.price;
-        const unitPrice = useDiscount ? dish.discountedPrice : dish.price ?? 0;
+        const unitPrice = (useDiscount ? dish.discountedPrice : dish.price) ?? 0;
         return sum + unitPrice * qty;
       }, 0),
     [selectedDishes, allDishes]

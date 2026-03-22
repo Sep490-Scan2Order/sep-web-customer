@@ -7,7 +7,6 @@ import {
   BellRing,
   Home,
   MapPin,
-  Clock,
   MoonStar,
   ReceiptText,
   Search,
@@ -82,7 +81,6 @@ export default function RestaurantDetailView({
   const [menuOpened] = useState(initialMenuOpened);
   const [now, setNow] = useState<Date>(new Date());
   const [showOrderLookup, setShowOrderLookup] = useState(false);
-  const [orderLookupTab, setOrderLookupTab] = useState<"active" | "history">("active");
   const [lookupPhone, setLookupPhone] = useState("");
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [outdoorTemp, setOutdoorTemp] = useState<number | null>(null);
@@ -322,36 +320,19 @@ export default function RestaurantDetailView({
             </div>
           </section>
 
-          <section className="mt-4 grid grid-cols-2 gap-3">
+          <section className="mt-4">
             <button
               type="button"
               onClick={() => {
                 setLookupError(null);
                 setLookupPhone("");
-                setOrderLookupTab("active");
                 setShowOrderLookup(true);
               }}
               className="flex h-20 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-xs font-semibold text-slate-700 shadow-sm"
             >
               <ReceiptText className="h-5 w-5 text-slate-600" />
               <span className="text-sm font-semibold leading-tight text-slate-800 sm:text-base">
-                Tra cứu hóa đơn
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setLookupError(null);
-                setLookupPhone("");
-                setOrderLookupTab("history");
-                setShowOrderLookup(true);
-              }}
-              className="flex h-20 w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 text-left text-xs font-semibold text-slate-600 shadow-sm"
-            >
-              <Clock className="h-5 w-5 text-slate-500" />
-              <span className="text-sm font-semibold leading-tight text-slate-800 sm:text-base">
-                Xem lịch sử đơn
+                Tra cứu đơn hàng
               </span>
             </button>
           </section>
@@ -442,13 +423,8 @@ export default function RestaurantDetailView({
                   return;
                 }
                 setShowOrderLookup(false);
-                const base =
-                  orderLookupTab === "history"
-                    ? "/orders/lookup/history"
-                    : "/orders/lookup";
-
                 router.push(
-                  `${base}?restaurantId=${encodeURIComponent(String(r.id))}&restaurantSlug=${encodeURIComponent(
+                  `/orders/lookup?restaurantId=${encodeURIComponent(String(r.id))}&restaurantSlug=${encodeURIComponent(
                     r.slug
                   )}&phoneNumber=${encodeURIComponent(phone)}`
                 );

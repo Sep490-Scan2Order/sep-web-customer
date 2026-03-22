@@ -6,11 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import { ArrowLeft } from "lucide-react";
 import { MainLayout, QrCodeModal } from "@/components/ui/common";
-import {
-  getCustomerActiveOrders,
-  getCustomerOrderHistory,
-  type CustomerOrderSummary,
-} from "@/services/orderCustomerService";
+import { getCustomerActiveOrders, type CustomerOrderSummary } from "@/services/orderCustomerService";
 import { getSignalRHubUrl } from "@/services/signalr";
 
 type CustomerUpdateStatusPayload = {
@@ -23,7 +19,7 @@ function statusLabel(status: number): string {
     case 0:
       return "Chưa thanh toán";
     case 1:
-      return "Đang chờ";
+      return "Chờ xử lý";
     case 2:
       return "Đang làm";
     case 3:
@@ -36,6 +32,38 @@ function statusLabel(status: number): string {
       return `Trạng thái ${status}`;
   }
 }
+
+function refundTypeLabel(refundType: number | null | undefined): string {
+  if (refundType === 0) return "Theo chính sách / điều chỉnh đơn";
+  if (refundType === 1) return "Hoàn do lỗi phía nhà hàng";
+  if (refundType === 2) return "Hoàn do lỗi hệ thống";
+  return "Hoàn tiền";
+}
+
+function isRefundOrder(o: CustomerOrderSummary): boolean {
+  return o.isRefundLog === true || o.typeOrder === 1;
+}
+
+/** Đơn gốc mà bản ghi hoàn trỏ tới (orderId === refundOrderId), không phải bản refund log. */
+function resolveParentOrderFromList(
+  orders: CustomerOrderSummary[],
+  refundOrderId: string | null | undefined
+): CustomerOrderSummary | null {
+  if (!refundOrderId?.trim()) return null;
+  const id = refundOrderId.trim().toLowerCase();
+  const match = orders.find((x) => x.orderId.toLowerCase() === id);
+  if (!match || isRefundOrder(match)) return null;
+  return match;
+}
+
+function resolveParentOrderCodeFromList(
+  orders: CustomerOrderSummary[],
+  refundOrderId: string | null | undefined
+): number | null {
+  return resolveParentOrderFromList(orders, refundOrderId)?.orderCode ?? null;
+}
+
+type ActiveTabKey = number | "refund";
 
 function statusStyle(status: number): {
   section: string;
@@ -96,17 +124,19 @@ function statusStyle(status: number): {
   }
 }
 
-type OrderLookupMode = "active" | "history";
-
-type OrderLookupViewProps = {
-  mode?: OrderLookupMode;
-};
-
 function formatMoneyVnd(amount: number): string {
   try {
     return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(amount);
   } catch {
     return `${amount}₫`;
+  }
+}
+
+function formatDateTimeVi(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString("vi-VN");
+  } catch {
+    return iso;
   }
 }
 
@@ -129,7 +159,7 @@ function renderLinePrice(line: {
   return { original: Number.isFinite(discountedLineTotal) && discountedLineTotal > 0 ? discountedLineTotal : originalLineTotal, discounted: null };
 }
 
-export default function OrderLookupView({ mode = "active" }: OrderLookupViewProps) {
+export default function OrderLookupView() {
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId") ?? "";
   const restaurantSlug = searchParams.get("restaurantSlug") ?? "";
@@ -137,6 +167,7 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Toàn bộ đơn từ GET .../customer/orders/active (một API; lọc theo tab). */
   const [orders, setOrders] = useState<CustomerOrderSummary[]>([]);
   const [selectedQr, setSelectedQr] = useState<{ qrCodeUrl: string; orderCode: number } | null>(null);
 
@@ -144,23 +175,38 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
   const startPromiseRef = useRef<Promise<void> | null>(null);
   const visibleOrderIdsRef = useRef<string[]>([]);
 
-  const statusTabs = useMemo(() => (mode === "history" ? [4, 5] : [0, 1, 2, 3, 4, 5]), [mode]);
-  const [selectedStatus, setSelectedStatus] = useState<number>(() => statusTabs[0] ?? 0);
+  const statusTabs = useMemo(() => [0, 1, 2, 3, 4, 5] as const, []);
+  const hasRefundInList = useMemo(() => orders.some(isRefundOrder), [orders]);
 
+  const [activeTabKey, setActiveTabKey] = useState<ActiveTabKey>(0);
+
+  /** Khi mất hết bản ghi hoàn tiền (reload), thoát khỏi tab refund nếu đang chọn. */
   useEffect(() => {
-    setSelectedStatus(statusTabs[0] ?? 0);
-  }, [mode, statusTabs]);
+    if (activeTabKey === "refund" && !hasRefundInList) setActiveTabKey(0);
+  }, [activeTabKey, hasRefundInList]);
 
-  const visibleOrders = useMemo(
-    () => orders.filter((o) => o.status === selectedStatus),
-    [orders, selectedStatus]
-  );
+  const visibleOrders = useMemo(() => {
+    if (activeTabKey === "refund") {
+      return orders.filter(isRefundOrder);
+    }
+    const s = activeTabKey as number;
+    if (s === 4) {
+      return orders.filter((o) => o.status === 4 && !isRefundOrder(o));
+    }
+    if (s === 5) {
+      return orders.filter((o) => o.status === 5 && !isRefundOrder(o));
+    }
+    return orders.filter((o) => o.status === s);
+  }, [orders, activeTabKey]);
 
   useEffect(() => {
     visibleOrderIdsRef.current = visibleOrders.map((o) => o.orderId).filter(Boolean);
   }, [visibleOrders]);
 
   // Note: UI giờ chỉ render theo selectedStatus, không còn grouped theo tab.
+
+  /** Đã giao / Đã huỷ: không hiển thị QR. */
+  const hideQrDeliveredOrCancelled = activeTabKey === 4 || activeTabKey === 5;
 
   const backHref = restaurantSlug
     ? `/restaurants/${encodeURIComponent(restaurantSlug)}`
@@ -179,11 +225,7 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
       setLoading(true);
       setError(null);
       try {
-        const limit = mode === "history" ? 50 : 20;
-        const data =
-          mode === "history"
-            ? await getCustomerOrderHistory({ restaurantId, phoneNumber, limit })
-            : await getCustomerActiveOrders({ restaurantId, phoneNumber, limit });
+        const data = await getCustomerActiveOrders({ restaurantId, phoneNumber });
         if (!cancelled) {
           setOrders(data);
         }
@@ -203,19 +245,17 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
     return () => {
       cancelled = true;
     };
-  }, [restaurantId, phoneNumber, mode]);
+  }, [restaurantId, phoneNumber]);
 
-  // Tab "active" cần polling để Served/Cancelled tự biến mất theo cutoff 1 giờ của BE.
+  // Trang tra cứu: làm mới định kỳ để bắt cập nhật trạng thái đơn.
   useEffect(() => {
     if (!restaurantId || !phoneNumber) return;
-    if (mode !== "active") return;
 
     let cancelled = false;
 
     async function poll() {
       try {
-        const limit = 20;
-        const data = await getCustomerActiveOrders({ restaurantId, phoneNumber, limit });
+        const data = await getCustomerActiveOrders({ restaurantId, phoneNumber });
         if (!cancelled) setOrders(data);
       } catch {
         // bỏ qua lỗi polling để không làm UI nhảy liên tục
@@ -227,7 +267,7 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [restaurantId, phoneNumber, mode]);
+  }, [restaurantId, phoneNumber]);
 
   useEffect(() => {
     let stopped = false;
@@ -338,36 +378,68 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
           <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
             <div className="mb-3 overflow-x-auto rounded-xl bg-slate-50 p-1">
               <div className="flex min-w-max flex-nowrap gap-1">
-                {statusTabs.map((s) => {
-                  const sStyle = statusStyle(s);
-                  const count = orders.filter((o) => o.status === s).length;
-                  const isActive = selectedStatus === s;
+                <>
+                  {statusTabs.map((s) => {
+                    const sStyle = statusStyle(s);
+                    const count =
+                      s === 4
+                        ? orders.filter((o) => o.status === 4 && !isRefundOrder(o)).length
+                        : s === 5
+                          ? orders.filter((o) => o.status === 5 && !isRefundOrder(o)).length
+                          : orders.filter((o) => o.status === s).length;
+                    const isActive = activeTabKey === s;
 
-                  return (
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setActiveTabKey(s)}
+                        className={`flex flex-shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition ${
+                          isActive
+                            ? "bg-orange-500 text-white shadow-sm"
+                            : "bg-transparent text-slate-600 hover:bg-white"
+                        }`}
+                      >
+                        <span className="flex items-center gap-2 whitespace-nowrap">
+                          <span className={`h-2.5 w-2.5 rounded-full ${sStyle.dot}`} />
+                          <span className="whitespace-nowrap">{statusLabel(s)}</span>
+                        </span>
+                        <span
+                          className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-bold ${
+                            isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                          }`}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {hasRefundInList && (
                     <button
-                      key={s}
                       type="button"
-                      onClick={() => setSelectedStatus(s)}
+                      onClick={() => setActiveTabKey("refund")}
                       className={`flex flex-shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition ${
-                        isActive
+                        activeTabKey === "refund"
                           ? "bg-orange-500 text-white shadow-sm"
                           : "bg-transparent text-slate-600 hover:bg-white"
                       }`}
                     >
                       <span className="flex items-center gap-2 whitespace-nowrap">
-                        <span className={`h-2.5 w-2.5 rounded-full ${sStyle.dot}`} />
-                        <span className="whitespace-nowrap">{statusLabel(s)}</span>
+                        <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
+                        <span className="whitespace-nowrap">Hoàn tiền</span>
                       </span>
                       <span
                         className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-bold ${
-                          isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                          activeTabKey === "refund"
+                            ? "bg-white/20 text-white"
+                            : "bg-slate-100 text-slate-700"
                         }`}
                       >
-                        {count}
+                        {orders.filter(isRefundOrder).length}
                       </span>
                     </button>
-                  );
-                })}
+                  )}
+                </>
               </div>
             </div>
 
@@ -385,6 +457,9 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
               <ul className="grid grid-cols-1 gap-3">
                 {visibleOrders.map((o) => {
                   const styles = statusStyle(o.status);
+                  const isRefund = isRefundOrder(o);
+                  const onRefundTab = activeTabKey === "refund";
+                  const showRefundBadge = isRefund && !onRefundTab;
                   const createdText = (() => {
                     try {
                       return new Date(o.createdAt).toLocaleString("vi-VN");
@@ -393,13 +468,111 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
                     }
                   })();
 
+                  if (isRefund) {
+                    const parentOrder = resolveParentOrderFromList(orders, o.refundOrderId);
+                    const parentOrderCode = parentOrder?.orderCode ?? null;
+                    const parentCreatedText =
+                      parentOrder?.createdAt != null && String(parentOrder.createdAt).trim() !== ""
+                        ? formatDateTimeVi(parentOrder.createdAt)
+                        : null;
+                    const amountFromParent =
+                      parentOrder != null && Number.isFinite(parentOrder.finalAmount)
+                        ? parentOrder.finalAmount
+                        : null;
+                    const displayRefundAmount =
+                      amountFromParent != null
+                        ? amountFromParent
+                        : o.finalAmount > 0 && Number.isFinite(o.finalAmount)
+                          ? o.finalAmount
+                          : null;
+                    return (
+                      <li key={o.orderId}>
+                        <div className="w-full rounded-2xl border border-violet-200 bg-violet-50/40 p-3 shadow-sm">
+                          <div className="flex flex-col gap-2">
+                            <div>
+                              <p className="text-xs font-bold uppercase tracking-wide text-violet-700">Hoàn tiền</p>
+                              {parentOrderCode != null ? (
+                                <>
+                                  <p className="mt-1 text-lg font-extrabold leading-snug text-slate-900">
+                                    Hoàn cho đơn #{parentOrderCode}
+                                  </p>
+                                  {parentCreatedText && (
+                                    <p className="mt-1 text-sm text-slate-600">
+                                      <span className="font-semibold text-slate-700">Đơn đặt lúc: </span>
+                                      {parentCreatedText}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <p className="mt-1 text-lg font-extrabold leading-snug text-slate-900">
+                                    Hoàn tiền đã xử lý
+                                  </p>
+                                  <p className="mt-1 text-sm text-slate-600">
+                                    Chưa tìm thấy đơn gốc trong danh sách vừa tải (có thể đơn nằm ngoài phần hiển thị).
+                                    Bạn có thể xem tab <strong>Đã giao</strong> hoặc liên hệ cửa hàng khi cần.
+                                  </p>
+                                </>
+                              )}
+                            </div>
+
+                            <p className="text-sm text-slate-700">
+                              <span className="font-semibold text-slate-800">Lý do: </span>
+                              {refundTypeLabel(o.refundType)}
+                            </p>
+                            <p className="text-sm text-slate-600">
+                              <span className="font-semibold text-slate-700">Ghi nhận hoàn lúc: </span>
+                              {createdText}
+                            </p>
+
+                            <div className="mt-1 space-y-2 border-t border-violet-100 pt-2">
+                              {displayRefundAmount != null ? (
+                                <p className="text-sm font-bold text-slate-900">
+                                  <span className="font-semibold text-slate-600">Số tiền tương ứng đơn đặt: </span>
+                                  {formatMoneyVnd(displayRefundAmount)}
+                                </p>
+                              ) : (
+                                <p className="text-sm text-slate-600">
+                                  Không lấy được giá trị đơn gốc trong danh sách — vui lòng xem tab{" "}
+                                  <strong>Đã giao</strong> / <strong>Đã huỷ</strong> hoặc hỏi cửa hàng.
+                                </p>
+                              )}
+                              <p className="text-sm leading-relaxed text-slate-600">
+                                Tiền sẽ được hoàn <strong>bằng tiền mặt</strong> hoặc <strong>chuyển khoản</strong> tùy
+                                cách bạn đã thanh toán lúc đặt món.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  }
+
                   return (
                     <li key={o.orderId}>
                       <div className={`w-full rounded-2xl border p-3 shadow-sm ${styles.card}`}>
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div
+                          className={
+                            hideQrDeliveredOrCancelled
+                              ? "flex flex-col gap-3"
+                              : "flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                          }
+                        >
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
                               <p className="text-base font-extrabold text-slate-900">Đơn #{o.orderCode}</p>
+                              {showRefundBadge && (
+                                <span
+                                  className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800 ring-1 ring-violet-200"
+                                  title={
+                                    o.refundOrderId
+                                      ? `Đơn gốc: ${o.refundOrderId} • ${refundTypeLabel(o.refundType)}`
+                                      : refundTypeLabel(o.refundType)
+                                  }
+                                >
+                                  Hoàn tiền
+                                </span>
+                              )}
                             </div>
 
                             <p className="mt-1 text-sm text-slate-600">Tạo lúc: {createdText}</p>
@@ -458,48 +631,62 @@ export default function OrderLookupView({ mode = "active" }: OrderLookupViewProp
                               </div>
                             )}
 
-                            <div className="mt-3 grid grid-cols-1 gap-1 text-sm text-slate-800 sm:grid-cols-2">
+                            <div
+                              className={
+                                hideQrDeliveredOrCancelled
+                                  ? "mt-3 text-sm text-slate-800"
+                                  : "mt-3 grid grid-cols-1 gap-1 text-sm text-slate-800 sm:grid-cols-2"
+                              }
+                            >
                               <p className="font-bold">
                                 <span className="font-semibold text-slate-500">Tổng cộng:</span>{" "}
                                 {formatMoneyVnd(o.finalAmount)}
                               </p>
-                              <p className="sm:text-right">
-                                {o.qrCodeUrl ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
-                                    className="font-semibold text-sky-700 underline underline-offset-2 hover:text-sky-800"
-                                  >
-                                    Xem mã QR
-                                  </button>
-                                ) : (
-                                  <span className="text-slate-400">Không có mã QR</span>
-                                )}
-                              </p>
+                              {!hideQrDeliveredOrCancelled && (
+                                <p className="sm:text-right">
+                                  {o.qrCodeUrl ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })
+                                      }
+                                      className="font-semibold text-sky-700 underline underline-offset-2 hover:text-sky-800"
+                                    >
+                                      Xem mã QR
+                                    </button>
+                                  ) : (
+                                    <span className="text-slate-400">Không có mã QR</span>
+                                  )}
+                                </p>
+                              )}
                             </div>
                           </div>
 
-                          <div className="sm:text-right">
-                            {o.qrCodeUrl ? (
-                              <button
-                                type="button"
-                                onClick={() => setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })}
-                                className="rounded-2xl transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
-                                aria-label={`Mở mã QR đơn #${o.orderCode}`}
-                              >
-                                <img
-                                  src={o.qrCodeUrl}
-                                  alt={`QR đơn #${o.orderCode}`}
-                                  className="h-24 w-24 rounded-2xl border border-slate-200 bg-white object-cover"
-                                  loading="lazy"
-                                />
-                              </button>
-                            ) : (
-                              <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-400">
-                                Không có QR
-                              </div>
-                            )}
-                          </div>
+                          {!hideQrDeliveredOrCancelled && (
+                            <div className="sm:text-right">
+                              {o.qrCodeUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSelectedQr({ qrCodeUrl: o.qrCodeUrl, orderCode: o.orderCode })
+                                  }
+                                  className="rounded-2xl transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                                  aria-label={`Mở mã QR đơn #${o.orderCode}`}
+                                >
+                                  <img
+                                    src={o.qrCodeUrl}
+                                    alt={`QR đơn #${o.orderCode}`}
+                                    className="h-24 w-24 rounded-2xl border border-slate-200 bg-white object-cover"
+                                    loading="lazy"
+                                  />
+                                </button>
+                              ) : (
+                                <div className="flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xs font-semibold text-slate-400">
+                                  Không có QR
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </li>
