@@ -206,6 +206,12 @@ export interface MenuDishItem {
   id: string;
   name: string;
   price: number | null;
+  discountedPrice?: number | null;
+  hasPromotion?: boolean;
+  promotionLabel?: string | null;
+  promotionName?: string | null;
+  promoType?: number | null;
+  dishAvailabilityStock?: number | null;
   description: string;
   categoryId: string;
   imageUrl?: string;

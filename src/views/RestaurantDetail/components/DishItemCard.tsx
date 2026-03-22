@@ -1,4 +1,4 @@
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, Tags } from "lucide-react";
 import type { MenuDishItem } from "@/types";
 
 interface DishItemCardProps {
@@ -16,10 +16,40 @@ export default function DishItemCard({
   onToggleDish,
   onQuantityChange,
 }: DishItemCardProps) {
+  const hasPromotion = Boolean(dish.hasPromotion);
+  const hasDiscountPrice =
+    hasPromotion &&
+    typeof dish.discountedPrice === "number" &&
+    dish.discountedPrice > 0 &&
+    dish.discountedPrice !== dish.price;
+
+  const displayPrice =
+    hasDiscountPrice && typeof dish.discountedPrice === "number"
+      ? dish.discountedPrice
+      : dish.price;
+
+  const soldOutByStock =
+    typeof dish.dishAvailabilityStock === "number" && dish.dishAvailabilityStock <= 0;
+  const isSoldOut = Boolean(dish.isSoldOut || soldOutByStock);
+
+  const promoTypeLabel = (promoType?: number | null): string => {
+    if (promoType === 1) return "Giờ vàng";
+    if (promoType === 2) return "Xả hàng";
+    if (promoType === 3) return "Ưu đãi tuần";
+    return "Khuyến mãi";
+  };
+
+  const promoTypeColor = (promoType?: number | null): string => {
+    if (promoType === 1) return "#f97316";
+    if (promoType === 2) return "#ef4444";
+    if (promoType === 3) return "#06b6d4";
+    return "#3b82f6";
+  };
+
   return (
     <div
       className={`rounded-lg border p-2 transition sm:p-3 ${
-        dish.isSoldOut
+        isSoldOut
           ? "border-slate-200 bg-slate-100 opacity-60"
           : isSelected
             ? "border-emerald-300 bg-emerald-50"
@@ -31,29 +61,49 @@ export default function DishItemCard({
           <input
             type="checkbox"
             checked={isSelected}
-            disabled={dish.isSoldOut}
+            disabled={isSoldOut}
             onChange={() => onToggleDish(dish.id)}
             className="h-4 w-4 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 sm:h-5 sm:w-5"
           />
         </div>
 
-        {dish.imageUrl && (
-          <img
-            src={dish.imageUrl}
-            alt={dish.name}
-            className="h-16 w-16 shrink-0 rounded-lg object-cover sm:h-20 sm:w-20"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = "none";
-            }}
-          />
-        )}
+        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 sm:h-20 sm:w-20">
+          {dish.imageUrl ? (
+            <img
+              src={dish.imageUrl}
+              alt={dish.name}
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : null}
+          {hasPromotion && (
+            <span
+              className="absolute right-1 top-1 inline-flex items-center gap-1 rounded-full px-1 py-0.5 text-[9px] font-semibold text-white shadow-sm"
+              style={{ backgroundColor: promoTypeColor(dish.promoType) }}
+            >
+              <Tags className="h-2.5 w-2.5" />
+              <span className="max-w-[4rem] truncate">{promoTypeLabel(dish.promoType)}</span>
+            </span>
+          )}
+        </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1 sm:gap-2">
           <div className="flex items-start justify-between gap-2 sm:gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1 sm:gap-2">
                 <p className="text-xs font-medium text-slate-800 sm:text-sm">{dish.name}</p>
-                {dish.isSoldOut && (
+                {hasPromotion && dish.promotionLabel && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-semibold text-white sm:px-2"
+                    title={dish.promotionName || dish.promotionLabel}
+                  >
+                    <Tags className="h-2.5 w-2.5" />
+                    <span className="max-w-[6rem] truncate">{dish.promotionLabel}</span>
+                  </span>
+                )}
+                {isSoldOut && (
                   <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-xs font-medium text-rose-700 sm:px-2">
                     Hết hàng
                   </span>
@@ -63,12 +113,30 @@ export default function DishItemCard({
                 <p className="mt-0.5 text-xs text-slate-500 sm:mt-1">{dish.description}</p>
               )}
             </div>
-            <p className="shrink-0 text-xs font-semibold text-emerald-700 sm:text-sm">
-              {dish.price != null ? `${dish.price.toLocaleString("vi-VN")}đ` : "Liên hệ"}
-            </p>
+            <div className="shrink-0 text-right">
+              {hasDiscountPrice && dish.price != null ? (
+                <>
+                  <p className="text-xs font-semibold text-emerald-700 sm:text-sm">
+                    {displayPrice != null ? `${displayPrice.toLocaleString("vi-VN")}đ` : "Liên hệ"}
+                  </p>
+                  <p className="text-[10px] text-slate-400 line-through sm:text-xs">
+                    {`${dish.price.toLocaleString("vi-VN")}đ`}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs font-semibold text-emerald-700 sm:text-sm">
+                  {displayPrice != null ? `${displayPrice.toLocaleString("vi-VN")}đ` : "Liên hệ"}
+                </p>
+              )}
+              {typeof dish.dishAvailabilityStock === "number" && (
+                <p className="mt-0.5 text-[10px] text-slate-500 sm:text-xs">
+                  SL: {dish.dishAvailabilityStock}
+                </p>
+              )}
+            </div>
           </div>
 
-          {isSelected && !dish.isSoldOut && (
+          {isSelected && !isSoldOut && (
             <div className="flex flex-wrap items-center gap-1 sm:gap-2">
               <button
                 type="button"

@@ -317,6 +317,12 @@ export async function getRestaurantGroupedMenu(
 					id: String(dish.dishId),
 					name: dish.dishName,
 					price: dish.price,
+					discountedPrice: (dish as unknown as { discountedPrice?: number | null }).discountedPrice ?? null,
+					hasPromotion: Boolean((dish as unknown as { hasPromotion?: boolean }).hasPromotion),
+					promotionLabel: (dish as unknown as { promotionLabel?: string | null }).promotionLabel ?? null,
+					promotionName: (dish as unknown as { promotionName?: string | null }).promotionName ?? null,
+					promoType: (dish as unknown as { promoType?: number | null }).promoType ?? null,
+					dishAvailabilityStock: (dish as unknown as { dishAvailabilityStock?: number | null }).dishAvailabilityStock ?? null,
 					description: dish.description || "",
 					categoryId: String(category.categoryId),
 					imageUrl: dish.imageUrl,
@@ -333,6 +339,81 @@ export async function getRestaurantGroupedMenu(
 	}
 
 	return { sections: [], ungroupedDishes: [] };
+}
+
+export async function getRestaurantMenuFromRestaurantEndpoint(
+	restaurantId: number
+): Promise<RestaurantMenuData> {
+	if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+		return { sections: [], ungroupedDishes: [] };
+	}
+
+	try {
+		const { data } = await api.get<GroupedMenuResponse>(
+			API.RESTAURANT.GET_MENU(restaurantId)
+		);
+
+		if (!data.isSuccess || !Array.isArray(data.data)) {
+			return { sections: [], ungroupedDishes: [] };
+		}
+
+		const sections: RestaurantMenuSection[] = data.data.map((category) => ({
+			id: String(category.categoryId),
+			name: category.categoryName,
+			dishes: category.dishes.map((dish) => ({
+				id: String(dish.dishId),
+				name: dish.dishName,
+				price: dish.price,
+				discountedPrice:
+					(() => {
+						const raw = (dish as unknown as { discountedPrice?: unknown }).discountedPrice;
+						if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+						if (typeof raw === "string") {
+							const parsed = Number(raw);
+							return Number.isFinite(parsed) ? parsed : null;
+						}
+						return null;
+					})(),
+				hasPromotion: Boolean((dish as unknown as { hasPromotion?: unknown }).hasPromotion),
+				promotionLabel:
+					(dish as unknown as { promotionLabel?: string | null }).promotionLabel ?? null,
+				promotionName:
+					(dish as unknown as { promotionName?: string | null }).promotionName ?? null,
+				promoType:
+					(() => {
+						const raw = (dish as unknown as { promoType?: unknown }).promoType;
+						if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+						if (typeof raw === "string") {
+							const parsed = Number(raw);
+							return Number.isFinite(parsed) ? parsed : null;
+						}
+						return null;
+					})(),
+				dishAvailabilityStock:
+					(() => {
+						const raw = (dish as unknown as { dishAvailabilityStock?: unknown }).dishAvailabilityStock;
+						if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+						if (typeof raw === "string") {
+							const parsed = Number(raw);
+							return Number.isFinite(parsed) ? parsed : null;
+						}
+						return null;
+					})(),
+				description: dish.description || "",
+				categoryId: String(category.categoryId),
+				imageUrl: dish.imageUrl,
+				isSoldOut: dish.isSoldOut,
+			})),
+		}));
+
+		return { sections, ungroupedDishes: [] };
+	} catch (err: unknown) {
+		const status = (err as { response?: { status?: number } })?.response?.status;
+		if (status === 404 || status === 400) {
+			return { sections: [], ungroupedDishes: [] };
+		}
+		throw err;
+	}
 }
 
 /**
