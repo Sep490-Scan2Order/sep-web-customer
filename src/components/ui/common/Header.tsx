@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Menu } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, ShoppingCart } from "lucide-react";
 import { APP_NAME } from "@/constants";
 import { ROUTES } from "@/constants/routes";
 import logoDefault from "@/assets/images/logo/logo_removebg.png";
+import { CART_DATA_STORAGE_KEY, CART_ID_STORAGE_KEY } from "@/services/orderCustomerService";
 
 const HEADER_LINKS = [
   { label: "Về chúng tôi", href: "/about-us" },
@@ -15,7 +17,65 @@ const HEADER_LINKS = [
 ];
 
 export function Header() {
+  const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+  const [cartId, setCartId] = useState<string | null>(null);
+
+  const restaurantIdFromPath = useMemo(() => {
+    if (!pathname) return null;
+    const parts = pathname.split("/").filter(Boolean);
+    if (parts.length !== 2 || parts[0] !== "restaurant") return null;
+    return parts[1] || null;
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!restaurantIdFromPath || typeof window === "undefined") {
+      setCartCount(0);
+      setCartId(null);
+      return;
+    }
+
+    const syncCart = () => {
+      const id = window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantIdFromPath));
+      if (!id) {
+        setCartId(null);
+        setCartCount(0);
+        return;
+      }
+      setCartId(id);
+      const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(id));
+      if (!raw) {
+        setCartCount(0);
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw) as { items?: Array<{ quantity: number }> };
+        const count =
+          parsed.items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) ?? 0;
+        setCartCount(count);
+      } catch {
+        setCartCount(0);
+      }
+    };
+
+    syncCart();
+    const onStorage = () => syncCart();
+    const onCartUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ restaurantId?: string | number }>).detail;
+      if (!detail?.restaurantId) return;
+      if (String(detail.restaurantId) !== String(restaurantIdFromPath)) return;
+      syncCart();
+    };
+
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("s2o-cart-updated", onCartUpdated as EventListener);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("s2o-cart-updated", onCartUpdated as EventListener);
+    };
+  }, [restaurantIdFromPath]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-emerald-800/60 bg-emerald-700/95 text-white backdrop-blur-md">
@@ -36,7 +96,30 @@ export function Header() {
           </div>
         </Link>
 
-        <div className="relative">
+        <div className="relative flex items-center gap-2">
+          {restaurantIdFromPath && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!cartId) return;
+                router.push(
+                  `/checkout-preorder?cartId=${encodeURIComponent(
+                    cartId
+                  )}&restaurantId=${encodeURIComponent(restaurantIdFromPath)}`
+                );
+              }}
+              disabled={!cartId}
+              className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-600/80 text-emerald-50 shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Mở giỏ hàng"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white px-1 text-[10px] font-extrabold text-emerald-700">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}

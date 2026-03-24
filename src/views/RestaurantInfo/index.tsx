@@ -8,6 +8,12 @@ import type { RestaurantMenuData, RestaurantSlugResponseData } from "@/types";
 import { FALLBACK_RESTAURANT_IMAGE } from "@/constants";
 import { ROUTES } from "@/constants/routes";
 import { getRestaurantMenuFromRestaurantEndpoint } from "@/services/menuRestaurantTemplateService";
+import {
+  addToCart,
+  CART_DATA_STORAGE_KEY,
+  CART_ID_STORAGE_KEY,
+  type CartResponse,
+} from "@/services/orderCustomerService";
 
 interface RestaurantInfoViewProps {
   restaurant: RestaurantSlugResponseData;
@@ -47,6 +53,9 @@ export default function RestaurantInfoView({
   const [menuError, setMenuError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>("all");
   const [selectedDishes, setSelectedDishes] = useState<Record<string, number>>({});
+  const [cartData, setCartData] = useState<CartResponse | null>(null);
+  const [cartLoading, setCartLoading] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
 
   useEffect(() => {
     setCoverSrc(r.image || FALLBACK_RESTAURANT_IMAGE);
@@ -161,6 +170,78 @@ export default function RestaurantInfoView({
       }
       return { ...prev, [dishId]: current - 1 };
     });
+  }
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const storageKey = CART_ID_STORAGE_KEY(r.id);
+    const cartId = window.localStorage.getItem(storageKey);
+    if (!cartId) return;
+    const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as CartResponse;
+      setCartData(parsed);
+    } catch {
+      // ignore invalid cache
+    }
+  }, [r.id]);
+
+  async function handleAddToCartFromBar() {
+    if (!hasSelectedDishes || cartLoading) return;
+    setCartLoading(true);
+    setCartError(null);
+
+    const storageKey = CART_ID_STORAGE_KEY(r.id);
+    let cartId: string | null =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem(storageKey)
+        : null;
+
+    try {
+      let lastCart: CartResponse | null = null;
+
+      for (const [dishId, quantity] of Object.entries(selectedDishes)) {
+        const parsedDishId = Number(dishId);
+        if (!Number.isFinite(parsedDishId) || quantity <= 0) continue;
+
+        const result = await addToCart({
+          restaurantId: Number(r.id),
+          dishId: parsedDishId,
+          quantity,
+          cartId,
+        });
+
+        cartId = result.cartId;
+        lastCart = result;
+      }
+
+      if (lastCart) {
+        setCartData(lastCart);
+        setSelectedDishes({});
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(storageKey, lastCart.cartId);
+          window.localStorage.setItem(
+            CART_DATA_STORAGE_KEY(lastCart.cartId),
+            JSON.stringify(lastCart)
+          );
+          window.dispatchEvent(
+            new CustomEvent("s2o-cart-updated", {
+              detail: { restaurantId: String(r.id), cartId: lastCart.cartId },
+            })
+          );
+        }
+      }
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ||
+        (e as Error)?.message ||
+        "Không thể thêm vào giỏ. Vui lòng thử lại.";
+      setCartError(msg);
+    } finally {
+      setCartLoading(false);
+    }
   }
 
   return (
@@ -520,11 +601,18 @@ export default function RestaurantInfoView({
                 </div>
                 <button
                   type="button"
-                  className="rounded-xl bg-white px-4 py-2 text-sm font-extrabold text-emerald-700 shadow-md"
+                  onClick={handleAddToCartFromBar}
+                  disabled={cartLoading}
+                  className="rounded-xl bg-white px-4 py-2 text-sm font-extrabold text-emerald-700 shadow-md disabled:opacity-60"
                 >
-                  Xem giỏ hàng
+                  {cartLoading ? "Đang xử lý..." : "Thêm vào giỏ"}
                 </button>
               </div>
+              {cartError && (
+                <p className="mx-auto mt-1.5 max-w-4xl text-center text-xs font-semibold text-white/90">
+                  ⚠ {cartError}
+                </p>
+              )}
             </div>
           </>
         )}

@@ -910,7 +910,7 @@ function MenuContent() {
       {totalSelectedItems > 0 && (
         <div className="fixed bottom-0 left-0 right-0 z-40 shadow-2xl">
           <div
-            className="px-3 py-3 sm:px-4"
+            className="px-3 py-3 font-sans sm:px-4"
             style={{ background: `linear-gradient(to right, ${themeColor}, ${themeColor}cc)` }}
           >
             <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
@@ -922,10 +922,10 @@ function MenuContent() {
                   </span>
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-white/80">
+                  <p className="text-xs font-semibold text-white/85">
                     {Object.keys(quantities).length} món đã chọn
                   </p>
-                  <p className="text-base font-extrabold text-white">
+                  <p className="text-base font-bold text-white">
                     {formatVND(totalAmount)}
                   </p>
                 </div>
@@ -935,7 +935,7 @@ function MenuContent() {
                 type="button"
                 disabled={cartLoading}
                 onClick={handleAddToCart}
-                className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-extrabold shadow-md transition active:scale-95 disabled:opacity-60 sm:px-6 sm:py-3 sm:text-base"
+                className="flex shrink-0 items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold shadow-md transition active:scale-95 disabled:opacity-60 sm:px-6 sm:py-3 sm:text-base"
                 style={{ color: themeColor }}
               >
                 {cartLoading ? (
