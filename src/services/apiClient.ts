@@ -37,8 +37,12 @@ export const api = axios.create({
   },
   httpsAgent: getHttpsAgent(),
   
-  adapter: "fetch",
-});
+  adapter: "fetch", // Báo cho Axios dùng cơ chế fetch
+  
+  // Trói chặt lệnh fetch vào Global Context của Cloudflare
+  fetch: (url: any, options: any) => fetch(url, options),
+  
+} as any);
 
 // ==========================================
 // BÊN DƯỚI GIỮ NGUYÊN CODE CŨ CỦA BẠN
