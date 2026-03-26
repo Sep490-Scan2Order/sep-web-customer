@@ -3,12 +3,24 @@ import { API_BASE_URL } from "@/services/api";
 
 function getHttpsAgent(): import("https").Agent | undefined {
   if (typeof window !== "undefined") return undefined;
+  
+ // 1. SỬA LỖI EDGE: Dựa vào biến môi trường của Next.js
+  if (process.env.NEXT_RUNTIME === "edge") {
+    return undefined; 
+  }
+
   const isDev = process.env.NODE_ENV === "development";
-  const allowSelfSigned =
-    process.env.NEXT_PUBLIC_ACCEPT_SELF_SIGNED === "true";
+  const allowSelfSigned = process.env.NEXT_PUBLIC_ACCEPT_SELF_SIGNED === "true";
+  
   if (isDev || allowSelfSigned) {
-    const https = require("https");
-    return new https.Agent({ rejectUnauthorized: false });
+    try {
+      // Dùng try-catch để nếu lỡ Edge có chạy vào đây thì cũng không bị crash web
+      const https = require("https");
+      return new https.Agent({ rejectUnauthorized: false });
+    } catch (e) {
+      // Bọc try-catch để an toàn 100% không làm sập server nếu thiếu thư viện
+      return undefined;
+    }
   }
   return undefined;
 }
@@ -24,8 +36,14 @@ export const api = axios.create({
     "Content-Type": "application/json",
   },
   httpsAgent: getHttpsAgent(),
+  
+  //@ts-ignore: 
+  fetch: (url, options) => fetch(url, options),
 });
 
+// ==========================================
+// BÊN DƯỚI GIỮ NGUYÊN CODE CŨ CỦA BẠN
+// Response interceptor...
 // Request interceptor: gửi kèm Authorization: Bearer <accessToken> (trừ khi _skipAuth)
 api.interceptors.request.use(
   (config) => {
