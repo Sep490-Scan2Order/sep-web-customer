@@ -37,8 +37,7 @@ export const api = axios.create({
   },
   httpsAgent: getHttpsAgent(),
   
-  //@ts-ignore: 
-  fetch: (url, options) => fetch(url, options),
+  adapter: "fetch",
 });
 
 // ==========================================
