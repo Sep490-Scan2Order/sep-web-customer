@@ -238,15 +238,20 @@ export async function getRestaurantBySlug(
 // CLIENT FETCH (Dùng Axios bình thường)
 // ==========================================
 export async function getRestaurantsAll(
-  latitude: number,
-  longitude: number,
   page: number = 1,
-  pageSize: number = 20
+  pageSize: number = 20,
+  coords?: { latitude: number; longitude: number }
 ): Promise<PagedRestaurantResultDto> {
+  const latitude = coords?.latitude;
+  const longitude = coords?.longitude;
   const { data } = await api.get<ApiResponse<PagedRestaurantResultDto>>(
     API.RESTAURANT.GET_ALL,
     {
-      params: { latitude, longitude, page, pageSize },
+      params: {
+        page,
+        pageSize,
+        ...(latitude != null && longitude != null ? { latitude, longitude } : {}),
+      },
     }
   );
   if (!data.data) {

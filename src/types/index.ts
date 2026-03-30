@@ -8,7 +8,7 @@ export interface Restaurant {
   image: string;
   rating: number;
   cuisineType: string;
-  distance: string;
+  distance?: string;
   address?: string;
 }
 

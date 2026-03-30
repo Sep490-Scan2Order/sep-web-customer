@@ -42,10 +42,12 @@ export function RestaurantCard({ restaurant, className }: RestaurantCardProps) {
         <h3 className="line-clamp-1 font-semibold text-slate-900 transition-colors group-hover:text-emerald-600">
           {restaurant.name}
         </h3>
-        <span className="flex items-center gap-1 text-sm text-slate-500">
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
-          {restaurant.distance}
-        </span>
+        {restaurant.distance ? (
+          <span className="flex items-center gap-1 text-sm text-slate-500">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            {restaurant.distance}
+          </span>
+        ) : null}
       </div>
     </Link>
   );
