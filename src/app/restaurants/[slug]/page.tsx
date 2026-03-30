@@ -1,3 +1,4 @@
+export const runtime = 'edge';
 import { notFound } from "next/navigation";
 import { getRestaurantBySlug } from "@/services";
 import RestaurantDetailView from "@/views/RestaurantDetail";
