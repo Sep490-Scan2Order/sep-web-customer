@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import { APP_NAME } from "@/constants";
 import { ROUTES } from "@/constants/routes";
 import logoDefault from "@/assets/images/logo/logo_removebg.png";
 import { CART_DATA_STORAGE_KEY, CART_ID_STORAGE_KEY } from "@/services/orderCustomerService";
+import { AllRestaurantsOrderLookupDrawer } from "@/components/ui/common/AllRestaurantsOrderLookupDrawer";
 
 const HEADER_LINKS = [
   { label: "Về chúng tôi", href: "/about-us" },
@@ -20,8 +21,10 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [orderLookupOpen, setOrderLookupOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [cartId, setCartId] = useState<string | null>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
 
   const restaurantIdFromPath = useMemo(() => {
     if (!pathname) return null;
@@ -77,7 +80,19 @@ export function Header() {
     };
   }, [restaurantIdFromPath]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const el = headerMenuRef.current;
+      if (!el || el.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
+  }, [open]);
+
   return (
+    <>
     <header className="sticky top-0 z-50 border-b border-emerald-800/60 bg-emerald-700/95 text-white backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link
@@ -96,7 +111,7 @@ export function Header() {
           </div>
         </Link>
 
-        <div className="relative flex items-center gap-2">
+        <div ref={headerMenuRef} className="relative flex items-center gap-2">
           {restaurantIdFromPath && (
             <button
               type="button"
@@ -120,32 +135,55 @@ export function Header() {
               )}
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-600/80 text-emerald-50 shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-emerald-700"
-            aria-label="Mở menu"
-            aria-expanded={open}
-          >
-            <Menu className="h-5 w-5" />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-600/80 text-emerald-50 shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-emerald-700"
+              aria-label="Mở menu"
+              aria-expanded={open}
+              aria-haspopup="true"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
 
-          {open && (
-            <div className="absolute right-0 mt-3 w-56 rounded-2xl border border-emerald-100/80 bg-emerald-50/98 py-2 text-sm text-slate-800 shadow-xl backdrop-blur-md">
-              {HEADER_LINKS.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="block px-4 py-2 text-slate-800 transition hover:bg-emerald-100 hover:text-emerald-900"
-                  onClick={() => setOpen(false)}
+            {open && (
+              <div
+                className="absolute right-0 top-full z-[60] mt-2 w-56 origin-top-right rounded-2xl border border-emerald-100/80 bg-emerald-50/98 py-2 text-sm text-slate-800 shadow-xl backdrop-blur-md"
+                role="menu"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOrderLookupOpen(true);
+                    setOpen(false);
+                  }}
+                  className="block w-full px-4 py-2 text-left text-slate-800 transition hover:bg-emerald-100 hover:text-emerald-900"
                 >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          )}
+                  Tra cứu hóa đơn
+                </button>
+                {HEADER_LINKS.map((item) => (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    role="menuitem"
+                    className="block px-4 py-2 text-slate-800 transition hover:bg-emerald-100 hover:text-emerald-900"
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </header>
+    <AllRestaurantsOrderLookupDrawer
+      open={orderLookupOpen}
+      onClose={() => setOrderLookupOpen(false)}
+    />
+    </>
   );
 }

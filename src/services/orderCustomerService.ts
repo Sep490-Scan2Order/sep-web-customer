@@ -155,3 +155,23 @@ export async function getCustomerOrders(params: {
 }): Promise<CustomerOrderSummary[]> {
   return getCustomerActiveOrders(params);
 }
+
+export type AllRestaurantOrderSummary = CustomerOrderSummary & {
+  restaurantId: number;
+  restaurantName?: string | null;
+};
+
+export async function getCustomerActiveOrdersAllRestaurants(
+  phoneNumber: string
+): Promise<AllRestaurantOrderSummary[]> {
+  const phone = phoneNumber.trim();
+  const { data } = await api.get<ApiResponse<AllRestaurantOrderSummary[]>>(
+    API.ORDER.CUSTOMER_GET_ORDERS_ACTIVE_ALL,
+    {
+      params: { phone },
+      _skipAuth: true,
+    } as unknown as Record<string, unknown>
+  );
+
+  return Array.isArray(data.data) ? data.data : [];
+}

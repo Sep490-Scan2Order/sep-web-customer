@@ -8,9 +8,16 @@ interface QrCodeModalProps {
   onClose: () => void;
   qrCodeUrl: string;
   orderCode?: number;
+  overlayClassName?: string;
 }
 
-export function QrCodeModal({ open, onClose, qrCodeUrl, orderCode }: QrCodeModalProps) {
+export function QrCodeModal({
+  open,
+  onClose,
+  qrCodeUrl,
+  orderCode,
+  overlayClassName,
+}: QrCodeModalProps) {
   useEffect(() => {
     if (!open) return;
 
@@ -36,7 +43,7 @@ export function QrCodeModal({ open, onClose, qrCodeUrl, orderCode }: QrCodeModal
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4"
+      className={`fixed inset-0 flex items-center justify-center bg-black/55 p-4 ${overlayClassName ?? "z-50"}`}
       role="dialog"
       aria-modal="true"
       aria-label={title}

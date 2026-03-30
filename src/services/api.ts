@@ -1,11 +1,11 @@
 function getApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  if (typeof window === "undefined") {
-    return `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api`;
-  }
-  return "/api";
+    if (process.env.NEXT_PUBLIC_API_URL) {
+        return process.env.NEXT_PUBLIC_API_URL;
+    }
+    if (typeof window === "undefined") {
+        return `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/api`;
+    }
+    return "/api";
 }
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -18,6 +18,7 @@ export const API = {
     },
     ORDER: {
         CUSTOMER_GET_ORDERS_ACTIVE: "/Order/customer/orders/active",
+        CUSTOMER_GET_ORDERS_ACTIVE_ALL: "/Order/customer/orders/active/all-restaurants",
         ADD_TO_CART: "/order/add-to-cart",
         CHECKOUT_CASH: "/order/checkout/cash",
         CHECKOUT_BANK_TRANSFER: "/order/checkout/bank-transfer",

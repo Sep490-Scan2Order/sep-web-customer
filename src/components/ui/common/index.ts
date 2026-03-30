@@ -5,4 +5,5 @@ export { RestaurantCard } from "./RestaurantCard";
 export { NearbyRestaurantGrid } from "./NearbyRestaurantGrid";
 export { AllRestaurantsList } from "./AllRestaurantsList";
 export { QrCodeModal } from "./QrCodeModal";
+export { AllRestaurantsOrderLookupDrawer } from "./AllRestaurantsOrderLookupDrawer";
 export { MainLayout } from "./layout";
