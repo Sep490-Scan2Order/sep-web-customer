@@ -1,6 +1,6 @@
 import { API, API_BASE_URL } from "@/services/api";
 import { api } from "@/services/apiClient";
-import { SearchResultItem } from "@/types";
+import type { HybridSearchResult } from "@/types";
 
 type ApiResponse<T> = {
   isSuccess: boolean;
@@ -10,13 +10,34 @@ type ApiResponse<T> = {
 
 export async function searchHybrid(params: {
     keyword: string;
-    latitude?: number;
-    longitude?: number;
-    radiusKm: number;
-    topK: number;
-}): Promise<SearchResultItem[]> {
-    const { data } = await api.get<ApiResponse<SearchResultItem[]>>(
-        API.SEARCH.SEARCH_HYBRID(params)
+    latitude?: number | null;
+    longitude?: number | null;
+    radiusKm?: number;
+    topK?: number;
+}): Promise<HybridSearchResult[]> {
+    const {
+      keyword,
+      latitude = null,
+      longitude = null,
+      radiusKm = 20,
+      topK = 20,
+    } = params;
+
+    const queryParams = new URLSearchParams();
+    queryParams.append("Keyword", keyword);
+    
+    if (latitude != null) {
+      queryParams.append("Latitude", String(latitude));
+    }
+    if (longitude != null) {
+      queryParams.append("Longitude", String(longitude));
+    }
+    
+    queryParams.append("RadiusKm", String(radiusKm));
+    queryParams.append("TopK", String(topK));
+
+    const { data } = await api.get<ApiResponse<HybridSearchResult[]>>(
+        `/Search/hybrid?${queryParams.toString()}`
     );
     return data.data ?? [];
 }
