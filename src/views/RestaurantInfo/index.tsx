@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Info, MapPin, Minus, Plus, ShoppingCart, Tags, X } from "lucide-react";
 import { MainLayout } from "@/components/ui/common";
+import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
 import type { RestaurantMenuData, RestaurantSlugResponseData } from "@/types";
 import { FALLBACK_RESTAURANT_IMAGE } from "@/constants";
 import { ROUTES } from "@/constants/routes";
@@ -627,6 +628,7 @@ export default function RestaurantInfoView({
           </>
         )}
       </div>
+      <PendingPaymentBanner restaurantId={r.id} restaurantSlug={r.slug} />
     </MainLayout>
   );
 }

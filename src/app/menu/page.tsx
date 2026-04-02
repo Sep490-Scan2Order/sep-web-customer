@@ -24,6 +24,7 @@ import {
   CART_ID_STORAGE_KEY,
   type CartResponse,
 } from "@/services/orderCustomerService";
+import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
 
 type DishDto = {
   dishId: number;
@@ -989,6 +990,9 @@ function MenuContent() {
 
       {/* Toast notifications góc phải */}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+
+      {/* Banner quay lại thanh toán QR nếu có pending */}
+      <PendingPaymentBanner restaurantId={restaurantId ?? undefined} restaurantSlug={restaurantParam} />
     </div>
   );
 }

@@ -42,6 +42,57 @@ export const CART_ID_STORAGE_KEY = (restaurantId: number | string) =>
 export const CART_DATA_STORAGE_KEY = (cartId: string) =>
   `s2o_cart_data_${cartId}`;
 
+/**
+ * Pending bank transfer session: lưu khi checkout bank thành công,
+ * xóa khi đã xác nhận thanh toán hoặc người dùng huỷ thủ công.
+ * TTL = 15 phút (đồng bộ với cronjob cancel unpaid orders).
+ */
+export const PENDING_BANK_TRANSFER_TTL_MS = 15 * 60 * 1000; // 15 phút (thực tế cronjob cancel)
+export const PENDING_BANK_TRANSFER_SAFE_TTL_MS = 13 * 60 * 1000; // 13 phút (banner ẩn trước 2' để đủ thời gian scan)
+
+export type PendingBankTransferSession = {
+  orderId: string;
+  qrUrl: string | null;
+  paymentCode: string;
+  totalAmount: number;
+  restaurantName: string;
+  qrCodeBase64: string | null;
+  restaurantId: string;
+  restaurantSlug: string;
+  checkoutUrl: string; // URL để quay lại trang checkout hiển thị QR
+  savedAt: number;
+};
+
+export const PENDING_BANK_TRANSFER_KEY = "s2o_pending_bank_transfer";
+
+export function savePendingBankTransfer(session: Omit<PendingBankTransferSession, "savedAt">) {
+  if (typeof window === "undefined") return;
+  const data: PendingBankTransferSession = { ...session, savedAt: Date.now() };
+  window.localStorage.setItem(PENDING_BANK_TRANSFER_KEY, JSON.stringify(data));
+}
+
+export function loadPendingBankTransfer(): PendingBankTransferSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(PENDING_BANK_TRANSFER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as PendingBankTransferSession;
+    const elapsed = Date.now() - parsed.savedAt;
+    if (elapsed >= PENDING_BANK_TRANSFER_TTL_MS) {
+      window.localStorage.removeItem(PENDING_BANK_TRANSFER_KEY);
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingBankTransfer() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(PENDING_BANK_TRANSFER_KEY);
+}
+
 export async function addToCart(req: AddToCartRequest): Promise<CartResponse> {
   const { data } = await api.post<ApiResponse<CartResponse>>(
     API.ORDER.ADD_TO_CART,

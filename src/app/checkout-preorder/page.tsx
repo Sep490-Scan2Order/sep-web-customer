@@ -11,6 +11,9 @@ import {
   checkoutBankTransfer,
   getCustomerActiveOrders,
   getAvailablePromotions,
+  savePendingBankTransfer,
+  clearPendingBankTransfer,
+  loadPendingBankTransfer,
   type CartResponse,
   type CheckoutBankTransferResponse,
   type PromotionResponse,
@@ -61,11 +64,34 @@ function CheckoutPreorderContent() {
   const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
   const [loadingPromotions, setLoadingPromotions] = useState(false);
 
+  const SESSION_RESULT_KEY = cartId ? `s2o_preorder_result_${cartId}` : "";
+
   useEffect(() => {
     if (!cartId) {
       setCartError("Không tìm thấy giỏ hàng.");
       return;
     }
+    
+    // Thử phục hồi state từ session nếu có (dùng cho banner QR quay lại)
+    try {
+      const savedResult = window.localStorage.getItem(SESSION_RESULT_KEY);
+      if (savedResult) {
+        const parsed = JSON.parse(savedResult) as {
+          orderResult: CheckoutBankTransferResponse;
+          phone: string;
+          savedAt: number;
+        };
+        const TTL_MS = 24 * 60 * 60 * 1000;
+        if (Date.now() - parsed.savedAt > TTL_MS) {
+          window.localStorage.removeItem(SESSION_RESULT_KEY);
+        } else if (parsed.orderResult) {
+          setOrderResult(parsed.orderResult);
+          setLookupPhone(parsed.phone);
+          return;
+        }
+      }
+    } catch { /* ignore */ }
+
     try {
       const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
       if (!raw) {
@@ -76,7 +102,7 @@ function CheckoutPreorderContent() {
     } catch {
       setCartError("Không thể đọc giỏ hàng.");
     }
-  }, [cartId]);
+  }, [cartId, SESSION_RESULT_KEY]);
 
   const totalItems = useMemo(
     () => cart?.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
@@ -119,6 +145,7 @@ function CheckoutPreorderContent() {
         const order = activeOrders.find((o) => o.orderId === orderResult.orderId);
         if (!cancelled && order && order.status >= 1) {
           setBankConfirmed(true);
+          clearPendingBankTransfer();
           if (cart?.cartId) {
             window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
           }
@@ -175,8 +202,28 @@ function CheckoutPreorderContent() {
       setOrderResult(result);
       setBankConfirmed(false);
 
-      // Ngay khi tạo đơn thành công, giỏ hàng cần dọn sạch 
-      // để nếu Back về Menu, nó không giữ số lượng cũ gây lỗi "hết hàng". 
+      // Lưu pending session để banner "Quay lại thanh toán" có thể hiện trên trang menu
+      savePendingBankTransfer({
+        orderId: result.orderId,
+        qrUrl: result.qrUrl,
+        paymentCode: result.paymentCode,
+        totalAmount: result.totalAmount,
+        restaurantName: result.restaurantName,
+        qrCodeBase64: result.qrCodeBase64,
+        restaurantId: restaurantIdParam,
+        restaurantSlug: restaurantSlug,
+        checkoutUrl: window.location.href,
+      });
+
+      if (SESSION_RESULT_KEY) {
+        window.localStorage.setItem(
+          SESSION_RESULT_KEY,
+          JSON.stringify({ orderResult: result, phone: trimmed, savedAt: Date.now() })
+        );
+      }
+
+      // Gi\u1ecf h\u00e0ng c\u1ea7n d\u1ecdn s\u1ea1ch ngay khi t\u1ea1o \u0111\u01a1n th\u00e0nh c\u00f4ng
+      // \u0111\u1ec3 n\u1ebfu Back v\u1ec1 Menu, kh\u00f4ng gi\u1eef s\u1ed1 l\u01b0\u1ee3ng c\u0169 g\u00e2y l\u1ed7i "h\u1ebft h\u00e0ng"
       window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
       if (restaurantIdParam) {
         window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));

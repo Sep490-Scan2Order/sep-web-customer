@@ -30,6 +30,7 @@ import {
 import MenuSection from "./components/MenuSection";
 import RestaurantInfoModal from "./components/RestaurantInfoModal";
 import OrderSummaryBar from "./components/OrderSummaryBar";
+import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
 
 interface RestaurantDetailViewProps {
   restaurant: RestaurantSlugResponseData;
@@ -443,6 +444,7 @@ export default function RestaurantDetailView({
         totalSelectedItems={totalSelectedItems}
         menuData={menuData}
       />
+      <PendingPaymentBanner restaurantId={r.id} restaurantSlug={r.slug} />
     </MainLayout>
   );
 }

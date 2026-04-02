@@ -27,6 +27,8 @@ import {
   getAvailablePromotions,
   CART_DATA_STORAGE_KEY,
   CART_ID_STORAGE_KEY,
+  savePendingBankTransfer,
+  clearPendingBankTransfer,
   type CartItem,
   type CartResponse,
   type CheckoutBankTransferResponse,
@@ -202,6 +204,7 @@ function CheckoutContent() {
 
         if (order && order.status >= 1) {
           setBankConfirmed(true);
+          clearPendingBankTransfer();
           window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
           if (restaurantIdParam) window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
         }
@@ -221,9 +224,8 @@ function CheckoutContent() {
     if (restaurantIdParam) {
       window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
     }
-    if (SESSION_RESULT_KEY) {
-      window.localStorage.removeItem(SESSION_RESULT_KEY);
-    }
+    // Cố tình không xoá SESSION_RESULT_KEY để người dùng nhấn nút "Quét QR" trên banner
+    // quay lại trang này vẫn load được giao diện thanh toán gốc.
   }
 
   async function handlePlaceOrder() {
@@ -247,6 +249,19 @@ function CheckoutContent() {
       } else {
         const res = await checkoutBankTransfer({ cartId, phone: trimmed, appliedPromotionId: selectedPromotionId });
         newStep = { kind: "done_bank", result: res, phone: trimmed };
+
+        // Lưu pending session để banner "Quay lại thanh toán" có thể hiện trên trang menu
+        savePendingBankTransfer({
+          orderId: res.orderId,
+          qrUrl: res.qrUrl,
+          paymentCode: res.paymentCode,
+          totalAmount: res.totalAmount,
+          restaurantName: res.restaurantName,
+          qrCodeBase64: res.qrCodeBase64,
+          restaurantId: restaurantIdParam,
+          restaurantSlug: restaurantSlug,
+          checkoutUrl: window.location.href,
+        });
       }
       setStep(newStep);
 
