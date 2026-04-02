@@ -4,6 +4,7 @@ export { HeroSection } from "./HeroSection";
 export { RestaurantCard } from "./RestaurantCard";
 export { NearbyRestaurantGrid } from "./NearbyRestaurantGrid";
 export { AllRestaurantsList } from "./AllRestaurantsList";
+export { HybridSearchResults } from "./HybridSearchResults";
 export { QrCodeModal } from "./QrCodeModal";
 export { AllRestaurantsOrderLookupDrawer } from "./AllRestaurantsOrderLookupDrawer";
 export { MainLayout } from "./layout";

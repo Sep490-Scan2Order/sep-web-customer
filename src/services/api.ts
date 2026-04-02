@@ -54,4 +54,7 @@ export const API = {
         GET_BY_RESTAURANT_ID: (restaurantId: number | string) =>
             `/Dish/by-restaurant/${restaurantId}`,
     },
+    SEARCH: {
+        HYBRID: "/Search/hybrid",
+    }
 };

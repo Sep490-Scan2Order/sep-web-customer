@@ -48,13 +48,13 @@ export function HeroSection() {
 
     const trimmedQuery = searchQuery.trim();
     if (!trimmedQuery) {
-      // If empty, just go to restaurants list
-      router.push("/restaurants");
+      // If empty, just go to search results page
+      router.push("/search");
       return;
     }
 
-    // Navigate to restaurants page with keyword query param
-    router.push(`/restaurants?keyword=${encodeURIComponent(trimmedQuery)}`);
+    // Navigate to search results page with keyword query param
+    router.push(`/search?keyword=${encodeURIComponent(trimmedQuery)}`);
   };
 
   return (
@@ -81,7 +81,7 @@ export function HeroSection() {
             </div>
             <button
               type="submit"
-              className="rounded-xl bg-slate-900 px-8 py-4 font-semibold text-white transition-colors hover:bg-slate-800 sm:rounded-l-none"
+              className="cursor-pointer rounded-xl bg-slate-900 px-8 py-4 font-semibold text-white transition-colors hover:bg-slate-800 sm:rounded-l-none"
             >
               Tìm kiếm
             </button>
