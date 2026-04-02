@@ -23,7 +23,11 @@ function dtoToRestaurant(d: RestaurantDto, withDistance: boolean): Restaurant {
   };
 }
 
-export function AllRestaurantsList() {
+interface AllRestaurantsListProps {
+  keyword?: string | null;
+}
+
+export function AllRestaurantsList({ keyword }: AllRestaurantsListProps) {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +39,7 @@ export function AllRestaurantsList() {
   const nextPageRef = useRef(1);
 
   const fetchPage = useCallback(
-    async (pageNum: number, append: boolean, c: { latitude: number; longitude: number } | null) => {
+    async (pageNum: number, append: boolean, c: { latitude: number; longitude: number } | null, k?: string | null) => {
       if (pageNum === 1) {
         setStatus("loading");
         setError(null);
@@ -44,7 +48,7 @@ export function AllRestaurantsList() {
       }
 
       try {
-        const result = await getRestaurantsAll(pageNum, PAGE_SIZE, c ?? undefined);
+        const result = await getRestaurantsAll(pageNum, PAGE_SIZE, c ?? undefined, k ?? undefined);
         const mapped = result.items.map((x) => dtoToRestaurant(x, c != null));
 
         setRestaurants((prev) => (append ? [...prev, ...mapped] : mapped));
@@ -73,7 +77,7 @@ export function AllRestaurantsList() {
     const load = (c: { latitude: number; longitude: number } | null) => {
       if (cancelled) return;
       setCoords(c);
-      fetchPage(1, false, c);
+      fetchPage(1, false, c, keyword);
     };
 
     if (!navigator?.geolocation) {
@@ -96,7 +100,7 @@ export function AllRestaurantsList() {
     return () => {
       cancelled = true;
     };
-  }, [fetchPage]);
+  }, [fetchPage, keyword]);
 
   useEffect(() => {
     if (!hasNextPage || loadingMore) return;
@@ -106,13 +110,13 @@ export function AllRestaurantsList() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
-        fetchPage(nextPageRef.current, true, coords);
+        fetchPage(nextPageRef.current, true, coords, keyword);
       },
       { rootMargin: "200px" }
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, loadingMore, fetchPage, coords]);
+  }, [hasNextPage, loadingMore, fetchPage, coords, keyword]);
 
   if (status === "loading" && restaurants.length === 0) {
     return (

@@ -1,14 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 
+const DEBOUNCE_DELAY_MS = 300;
+
 export function HeroSection() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+
+    // Clear previous debounce timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new debounce timer for real-time search feedback (optional logging)
+    if (value.trim()) {
+      debounceTimerRef.current = setTimeout(() => {
+        console.log("Debounced search query:", value.trim());
+        // Real-time search logic could go here (e.g., fetch suggestions)
+      }, DEBOUNCE_DELAY_MS);
+    }
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Search:", searchQuery);
+
+    // Clear any pending debounce timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    const trimmedQuery = searchQuery.trim();
+    if (!trimmedQuery) {
+      // If empty, just go to restaurants list
+      router.push("/restaurants");
+      return;
+    }
+
+    // Navigate to restaurants page with keyword query param
+    router.push(`/restaurants?keyword=${encodeURIComponent(trimmedQuery)}`);
   };
 
   return (
@@ -29,7 +75,7 @@ export function HeroSection() {
                 type="search"
                 placeholder="Tìm nhà hàng hoặc món ăn..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleInputChange}
                 className="w-full rounded-xl border-0 bg-white py-4 pl-12 pr-4 text-slate-900 shadow-lg placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 focus:ring-offset-emerald-700 sm:rounded-r-none"
               />
             </div>

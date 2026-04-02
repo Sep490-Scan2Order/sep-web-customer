@@ -5,6 +5,7 @@ export const ROUTES = {
   HOME: "/",
   HISTORY: "/history",
   MENU: "/menu",
+  NEARBY_RESTAURANTS: "/nearby-restaurants",
   RESTAURANTS: "/restaurants",
   RESTAURANT: (id: string | number) => `/restaurant/${id}`,
   RESTAURANT_SLUG: (slug: string) => `/restaurants/${slug}`,

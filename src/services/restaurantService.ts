@@ -240,10 +240,12 @@ export async function getRestaurantBySlug(
 export async function getRestaurantsAll(
   page: number = 1,
   pageSize: number = 20,
-  coords?: { latitude: number; longitude: number }
+  coords?: { latitude: number; longitude: number },
+  keyword?: string
 ): Promise<PagedRestaurantResultDto> {
   const latitude = coords?.latitude;
   const longitude = coords?.longitude;
+  const normalizedKeyword = keyword?.trim();
   const { data } = await api.get<ApiResponse<PagedRestaurantResultDto>>(
     API.RESTAURANT.GET_ALL,
     {
@@ -251,6 +253,7 @@ export async function getRestaurantsAll(
         page,
         pageSize,
         ...(latitude != null && longitude != null ? { latitude, longitude } : {}),
+        ...(normalizedKeyword ? { keyword: normalizedKeyword } : {}),
       },
     }
   );
