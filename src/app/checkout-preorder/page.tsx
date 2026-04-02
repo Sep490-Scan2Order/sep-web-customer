@@ -18,6 +18,22 @@ import {
   type CheckoutBankTransferResponse,
   type PromotionResponse,
 } from "@/services/orderCustomerService";
+import { getRestaurantGroupedMenu } from "@/services/menuRestaurantTemplateService";
+import type { RestaurantMenuData } from "@/types";
+
+function buildDishImageUrlById(menu: RestaurantMenuData): Record<number, string> {
+  const map: Record<number, string> = {};
+  const add = (dishId: string, url: string | null | undefined) => {
+    const id = Number(dishId);
+    const u = url?.trim();
+    if (Number.isFinite(id) && u) map[id] = u;
+  };
+  for (const s of menu.sections) {
+    for (const d of s.dishes) add(d.id, d.imageUrl);
+  }
+  for (const d of menu.ungroupedDishes) add(d.id, d.imageUrl);
+  return map;
+}
 
 function formatVND(v: number): string {
   return `${v.toLocaleString("vi-VN")}đ`;
@@ -93,6 +109,8 @@ function CheckoutPreorderContent() {
   const [promotions, setPromotions] = useState<PromotionResponse[]>([]);
   const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
   const [loadingPromotions, setLoadingPromotions] = useState(false);
+  /** Ảnh món từ API menu (cùng nguồn trang nhà hàng) — dùng khi cart item không có imageUrl */
+  const [dishImageUrlById, setDishImageUrlById] = useState<Record<number, string>>({});
 
   const SESSION_RESULT_KEY = cartId ? `s2o_preorder_result_${cartId}` : "";
 
@@ -152,6 +170,23 @@ function CheckoutPreorderContent() {
       setCartError("Không thể đọc giỏ hàng.");
     }
   }, [cartId, SESSION_RESULT_KEY]);
+
+  useEffect(() => {
+    const rid = Number(restaurantIdParam);
+    if (!cart || !Number.isFinite(rid) || rid <= 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const menu = await getRestaurantGroupedMenu(rid);
+        if (!cancelled) setDishImageUrlById(buildDishImageUrlById(menu));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cart, restaurantIdParam]);
 
   const totalItems = useMemo(
     () => cart?.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
@@ -346,16 +381,20 @@ function CheckoutPreorderContent() {
                       <li key={item.dishId} className="flex items-center gap-3 py-2 w-full">
                         <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
                           <Utensils className="h-5 w-5 text-slate-300" />
-                          {item.imageUrl?.trim() ? (
-                            <img
-                              src={item.imageUrl}
-                              alt={item.dishName}
-                              className="absolute inset-0 h-full w-full object-cover"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).style.display = "none";
-                              }}
-                            />
-                          ) : null}
+                          {(() => {
+                            const src =
+                              item.imageUrl?.trim() || dishImageUrlById[item.dishId]?.trim();
+                            return src ? (
+                              <img
+                                src={src}
+                                alt={item.dishName}
+                                className="absolute inset-0 h-full w-full object-cover"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLImageElement).style.display = "none";
+                                }}
+                              />
+                            ) : null;
+                          })()}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-800">
