@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarClock, CheckCircle2, Loader2, QrCode, ShoppingCart, Ticket, Tag, Clock, Flame, CalendarDays, Utensils } from "lucide-react";
+import { ArrowLeft, CalendarClock, CheckCircle2, Loader2, QrCode, ShoppingCart, Ticket, Tag, Clock, Flame, CalendarDays, Utensils } from "lucide-react";
 import { MainLayout } from "@/components/ui/common";
 import { ROUTES } from "@/constants/routes";
 import {
@@ -31,6 +31,33 @@ function formatLocalDateTimeForInput(date: Date): string {
   const hh = pad(date.getHours());
   const mm = pad(date.getMinutes());
   return `${y}-${m}-${d}T${hh}:${mm}`;
+}
+
+function calcPromotionDiscount(
+  promo: PromotionResponse | undefined,
+  orderTotal: number
+): number {
+  if (!promo) return 0;
+  if (!Number.isFinite(orderTotal) || orderTotal <= 0) return 0;
+  if (Number.isFinite(promo.minOrderValue) && orderTotal < promo.minOrderValue) return 0;
+
+  // discountType: 0 = %, 1 = số tiền (theo cách hiển thị hiện tại của UI)
+  const discountType = promo.discountType;
+  const discountValue = promo.discountValue ?? 0;
+
+  let raw = 0;
+  if (discountType === 0) {
+    raw = (orderTotal * discountValue) / 100;
+  } else {
+    raw = discountValue;
+  }
+
+  const maxCap = promo.maxDiscountValue;
+  if (typeof maxCap === "number" && Number.isFinite(maxCap) && maxCap > 0) {
+    raw = Math.min(raw, maxCap);
+  }
+
+  return Math.max(0, Math.floor(raw));
 }
 
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
@@ -269,21 +296,37 @@ function CheckoutPreorderContent() {
   }
 
   const selectedPromo = promotions.find(p => p.id === selectedPromotionId);
-  const discountAmount = selectedPromo?.discountAmount ?? 0;
-  const finalAmountCalculated = Math.max(0, (cart?.totalAmount ?? 0) - discountAmount);
-  const finalAmountRounded = Math.round(finalAmountCalculated / 1000) * 1000;
+  const orderTotal = cart?.totalAmount ?? 0;
+  const discountAmount = calcPromotionDiscount(selectedPromo, orderTotal);
+  const finalAmount = Math.max(0, orderTotal - discountAmount);
+  const effectiveDiscount = Math.max(0, orderTotal - (selectedPromo ? finalAmount : orderTotal));
 
   return (
     <MainLayout hideHeader hideFooter>
-      <div className="mx-auto w-full max-w-3xl px-4 py-6">
-        <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5">
-          <h1 className="text-xl font-extrabold text-emerald-800">Thanh toán đơn đặt trước</h1>
-          <p className="mt-1 text-sm text-slate-600">
-            Thanh toán chuyển khoản và chọn thời gian nhận đơn.
-          </p>
+      <div className="min-h-screen w-full bg-white">
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95"
+              aria-label="Quay lại"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="flex-1">
+              <h1 className="text-xl font-extrabold text-emerald-800">Thanh toán đơn đặt trước</h1>
+              <p className="mt-0.5 text-sm text-slate-600">
+                Thanh toán chuyển khoản và chọn thời gian nhận đơn.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-0 py-4">
 
           {cartError && !orderResult && (
-            <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            <div className="mx-4 mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               {cartError}
             </div>
           )}
@@ -291,7 +334,7 @@ function CheckoutPreorderContent() {
           {!orderResult ? (
             <>
               {cart && (
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="mt-4 rounded-none border-y border-slate-200 bg-slate-50 p-3 sm:mx-auto sm:max-w-3xl sm:rounded-xl sm:border">
                   <div className="flex items-center gap-2 text-slate-700">
                     <ShoppingCart className="h-4 w-4" />
                     <div className="flex flex-col">
@@ -302,15 +345,14 @@ function CheckoutPreorderContent() {
                     {cart.items.map((item) => (
                       <li key={item.dishId} className="flex items-center gap-3 py-2 w-full">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
-                          {item.imageUrl ? (
-                            <img 
-                              src={item.imageUrl} 
-                              alt={item.dishName} 
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <Utensils className="h-5 w-5 text-slate-300" />
-                          )}
+                          <img
+                            src={item.imageUrl?.trim() ? item.imageUrl : "/dish-placeholder.svg"}
+                            alt={item.dishName}
+                            className="h-full w-full object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = "/dish-placeholder.svg";
+                            }}
+                          />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-800">
@@ -345,7 +387,7 @@ function CheckoutPreorderContent() {
                     {selectedPromo && discountAmount > 0 && (
                       <div className="mt-1 flex items-center justify-between text-sm">
                         <span className="font-semibold text-emerald-700">Giảm</span>
-                        <span className="font-bold text-emerald-700">- {formatVND(discountAmount)}</span>
+                        <span className="font-bold text-emerald-700">- {formatVND(effectiveDiscount)}</span>
                       </div>
                     )}
 
@@ -354,14 +396,9 @@ function CheckoutPreorderContent() {
                         <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
                           Tổng thanh toán
                         </span>
-                        {selectedPromo && discountAmount > 0 && (
-                          <span className="mt-0.5 text-xs font-semibold text-emerald-600">
-                            Tiết kiệm {formatVND(discountAmount)}
-                          </span>
-                        )}
                       </div>
                       <span className="text-lg font-extrabold text-slate-900">
-                        {formatVND(selectedPromo ? finalAmountRounded : cart.totalAmount)}
+                        {formatVND(selectedPromo ? finalAmount : cart.totalAmount)}
                       </span>
                     </div>
                   </div>
@@ -370,7 +407,7 @@ function CheckoutPreorderContent() {
 
               {/* Khuyến mãi */}
               {cart && (promotions.length > 0 || loadingPromotions) && (
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="mt-4 rounded-none border-y border-slate-200 bg-slate-50 p-3 sm:mx-auto sm:max-w-3xl sm:rounded-xl sm:border">
                   <div className="flex items-center gap-2 mb-3">
                     <Ticket className="h-4 w-4 text-emerald-500" />
                     <p className="text-sm font-extrabold text-slate-800">Khuyến mãi & Ưu đãi</p>
@@ -448,7 +485,7 @@ function CheckoutPreorderContent() {
                 </div>
               )}
 
-              <div className="mt-4 grid grid-cols-1 gap-3">
+              <div className="mx-4 mt-4 grid grid-cols-1 gap-3 sm:mx-auto sm:max-w-3xl">
                 <label className="block">
                   <span className="text-sm font-semibold text-slate-700">Số điện thoại</span>
                   <input
@@ -496,7 +533,7 @@ function CheckoutPreorderContent() {
                 type="button"
                 disabled={submitting || !cart}
                 onClick={handleCheckoutBankTransfer}
-                className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mx-4 mt-4 inline-flex w-[calc(100%-2rem)] items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:mx-auto sm:w-full sm:max-w-3xl"
               >
                 {submitting ? (
                   <>
@@ -638,7 +675,7 @@ export default function CheckoutPreorderPage() {
     <Suspense
       fallback={
         <MainLayout hideHeader hideFooter>
-          <div className="mx-auto flex min-h-[50vh] w-full max-w-3xl items-center justify-center px-4 py-6">
+          <div className="flex min-h-[50vh] w-full items-center justify-center px-4 py-6">
             <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
           </div>
         </MainLayout>
