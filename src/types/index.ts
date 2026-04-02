@@ -233,3 +233,32 @@ export interface RestaurantMenuFromTemplateResult {
   menuData: RestaurantMenuData;
   templateData: MenuRestaurantTemplateResponseData | null;
 }
+
+export interface HybridSearchDish {
+  dishId: number;
+  dishName: string;
+  description: string;
+  price: number;
+  imageUrl: string;
+  relevanceScore: number;
+  semanticDistance: number;
+}
+
+export interface HybridSearchResult {
+  restaurantId: number;
+  restaurantName: string;
+  description: string;
+  imageUrl: string;
+  backgroundImageUrl: string;
+  gpsDistanceKm: number;
+  finalScore: number;
+  suggestedDishes: HybridSearchDish[];
+}
+
+export interface HybridSearchResponse {
+  isSuccess: boolean;
+  message: string;
+  data: HybridSearchResult[];
+  errors: unknown;
+  timestamp: string;
+}
