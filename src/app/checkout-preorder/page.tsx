@@ -53,6 +53,9 @@ function CheckoutPreorderContent() {
     const d = new Date(Date.now() + 30 * 60 * 1000);
     return formatLocalDateTimeForInput(d);
   });
+  const [pickupMin, setPickupMin] = useState(() =>
+    formatLocalDateTimeForInput(new Date())
+  );
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [pickupError, setPickupError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -65,6 +68,25 @@ function CheckoutPreorderContent() {
   const [loadingPromotions, setLoadingPromotions] = useState(false);
 
   const SESSION_RESULT_KEY = cartId ? `s2o_preorder_result_${cartId}` : "";
+
+  useEffect(() => {
+    const tick = () => {
+      const now = new Date();
+      const minStr = formatLocalDateTimeForInput(now);
+      setPickupMin(minStr);
+      
+      setPickupAt((prev) => {
+        const prevTime = new Date(prev).getTime();
+        if (Number.isFinite(prevTime) && prevTime < now.getTime()) {
+          return minStr;
+        }
+        return prev;
+      });
+    };
+    tick();
+    const t = window.setInterval(tick, 15_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (!cartId) {
@@ -188,6 +210,13 @@ function CheckoutPreorderContent() {
       setPickupError("Vui lòng chọn thời gian nhận đơn.");
       return;
     }
+
+    // Chặn chọn thời gian trong quá khứ (phòng trường hợp user chỉnh thủ công)
+    const selectedTime = new Date(pickupAt).getTime();
+    if (!Number.isFinite(selectedTime) || selectedTime < Date.now() - 30_000) {
+      setPickupError("Thời gian nhận đơn không hợp lệ. Vui lòng chọn từ hiện tại trở đi.");
+      return;
+    }
     setPickupError(null);
 
     setSubmitting(true);
@@ -261,20 +290,12 @@ function CheckoutPreorderContent() {
 
           {!orderResult ? (
             <>
-              {!cartError && cart && (
+              {cart && (
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center gap-2 text-slate-700">
                     <ShoppingCart className="h-4 w-4" />
                     <div className="flex flex-col">
-                       {selectedPromo ? (
-                          <>
-                            <p className="text-xs text-slate-400 line-through">{formatVND(cart.totalAmount)}</p>
-                            <p className="text-sm font-semibold">{totalItems} món • {formatVND(finalAmountRounded)}</p>
-                            <p className="text-xs text-emerald-600 font-semibold mt-0.5">Tiết kiệm {formatVND(discountAmount)}</p>
-                          </>
-                       ) : (
-                          <p className="text-sm font-semibold">{totalItems} món • {formatVND(cart.totalAmount)}</p>
-                       )}
+                      <p className="text-sm font-semibold">{totalItems} món</p>
                     </div>
                   </div>
                   <ul className="mt-3 divide-y divide-slate-100 border-t border-slate-100 pt-1">
@@ -311,11 +332,44 @@ function CheckoutPreorderContent() {
                       </li>
                     ))}
                   </ul>
+
+                  {/* Tổng kết thanh toán (giống trang checkout) */}
+                  <div className="mt-3 border-t border-slate-200 pt-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-semibold text-slate-600">Tổng cộng</span>
+                      <span className={selectedPromo ? "text-slate-400 line-through" : "font-bold text-slate-900"}>
+                        {formatVND(cart.totalAmount)}
+                      </span>
+                    </div>
+
+                    {selectedPromo && discountAmount > 0 && (
+                      <div className="mt-1 flex items-center justify-between text-sm">
+                        <span className="font-semibold text-emerald-700">Giảm</span>
+                        <span className="font-bold text-emerald-700">- {formatVND(discountAmount)}</span>
+                      </div>
+                    )}
+
+                    <div className="mt-2 flex items-end justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
+                          Tổng thanh toán
+                        </span>
+                        {selectedPromo && discountAmount > 0 && (
+                          <span className="mt-0.5 text-xs font-semibold text-emerald-600">
+                            Tiết kiệm {formatVND(discountAmount)}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-lg font-extrabold text-slate-900">
+                        {formatVND(selectedPromo ? finalAmountRounded : cart.totalAmount)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* Khuyến mãi */}
-              {!cartError && cart && (promotions.length > 0 || loadingPromotions) && (
+              {cart && (promotions.length > 0 || loadingPromotions) && (
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center gap-2 mb-3">
                     <Ticket className="h-4 w-4 text-emerald-500" />
@@ -418,11 +472,21 @@ function CheckoutPreorderContent() {
                   <input
                     type="datetime-local"
                     value={pickupAt}
+                    min={pickupMin}
+                    required
                     onChange={(e) => {
-                      setPickupAt(e.target.value);
+                      const next = e.target.value;
+                      // Clamp: nếu user nhập quá khứ (hoặc min vừa nhảy lên), tự đẩy về min
+                      const nextTime = new Date(next).getTime();
+                      const minTime = new Date(pickupMin).getTime();
+                      if (Number.isFinite(nextTime) && Number.isFinite(minTime) && nextTime < minTime) {
+                        setPickupAt(pickupMin);
+                      } else {
+                        setPickupAt(next);
+                      }
                       setPickupError(null);
                     }}
-                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-emerald-400"
+                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 invalid:text-slate-400 invalid:border-rose-300 invalid:bg-slate-50"
                   />
                   {pickupError && <p className="mt-1 text-xs font-semibold text-rose-600">{pickupError}</p>}
                 </label>
