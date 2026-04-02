@@ -465,10 +465,36 @@ function MenuContent() {
         if (!restaurantId) {
           throw new Error("Dữ liệu nhà hàng không hợp lệ (không có id).");
         }
-        if (!cancelled) setRestaurantId(restaurantId);
+        if (!cancelled) {
+          setRestaurantId(restaurantId);
+
+          if (typeof window !== "undefined") {
+            try {
+              const cId = window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId));
+              if (cId) {
+                const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cId));
+                if (raw) {
+                  const parsed = JSON.parse(raw) as CartResponse;
+                  setCartData(parsed);
+                  const qs: Record<number, number> = {};
+                  parsed.items?.forEach((i) => {
+                    qs[i.dishId] = i.quantity;
+                  });
+                  setQuantities(qs);
+                }
+              }
+            } catch {
+              // ignore invalid localstorage
+            }
+          }
+        }
 
         const res = await fetch(
-          `${API_BASE_URL}/MenuTemplate/restaurant/${restaurantId}/template`
+          `${API_BASE_URL}/MenuTemplate/restaurant/${restaurantId}/template`,
+          {
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+          }
         );
 
         if (!res.ok) {

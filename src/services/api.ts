@@ -22,6 +22,7 @@ export const API = {
         ADD_TO_CART: "/order/add-to-cart",
         CHECKOUT_CASH: "/order/checkout/cash",
         CHECKOUT_BANK_TRANSFER: "/order/checkout/bank-transfer",
+        AVAILABLE_PROMOTIONS: "/order/available-promotions",
     },
     RESTAURANT: {
         GET_NEARBY: "/Restaurant/nearby",

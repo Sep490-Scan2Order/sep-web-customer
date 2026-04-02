@@ -307,7 +307,13 @@ export async function getRestaurantGroupedMenu(
 
 	for (const endpoint of endpoints) {
 		try {
-			const { data } = await api.get<GroupedMenuResponse>(endpoint);
+			const { data } = await api.get<GroupedMenuResponse>(endpoint, {
+				headers: {
+					"Cache-Control": "no-cache",
+					Pragma: "no-cache",
+				},
+				params: { _t: Date.now() },
+			});
 			if (!data.isSuccess || !Array.isArray(data.data)) continue;
 
 			const sections: RestaurantMenuSection[] = data.data.map((category) => ({
@@ -350,7 +356,14 @@ export async function getRestaurantMenuFromRestaurantEndpoint(
 
 	try {
 		const { data } = await api.get<GroupedMenuResponse>(
-			API.RESTAURANT.GET_MENU(restaurantId)
+			API.RESTAURANT.GET_MENU(restaurantId),
+			{
+				headers: {
+					"Cache-Control": "no-cache",
+					Pragma: "no-cache",
+				},
+				params: { _t: Date.now() },
+			}
 		);
 
 		if (!data.isSuccess || !Array.isArray(data.data)) {
