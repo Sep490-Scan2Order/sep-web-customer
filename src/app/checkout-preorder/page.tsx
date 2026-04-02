@@ -344,15 +344,18 @@ function CheckoutPreorderContent() {
                   <ul className="mt-3 divide-y divide-slate-100 border-t border-slate-100 pt-1">
                     {cart.items.map((item) => (
                       <li key={item.dishId} className="flex items-center gap-3 py-2 w-full">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
-                          <img
-                            src={item.imageUrl?.trim() ? item.imageUrl : "/dish-placeholder.svg"}
-                            alt={item.dishName}
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = "/dish-placeholder.svg";
-                            }}
-                          />
+                        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
+                          <Utensils className="h-5 w-5 text-slate-300" />
+                          {item.imageUrl?.trim() ? (
+                            <img
+                              src={item.imageUrl}
+                              alt={item.dishName}
+                              className="absolute inset-0 h-full w-full object-cover"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          ) : null}
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-semibold text-slate-800">
