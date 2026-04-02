@@ -182,6 +182,16 @@ export default function RestaurantInfoView({
     try {
       const parsed = JSON.parse(raw) as CartResponse;
       setCartData(parsed);
+
+      const restoreDishes: Record<string, number> = {};
+      let hasItems = false;
+      parsed.items?.forEach((item) => {
+        restoreDishes[String(item.dishId)] = item.quantity;
+        hasItems = true;
+      });
+      if (hasItems) {
+        setSelectedDishes(restoreDishes);
+      }
     } catch {
       // ignore invalid cache
     }
