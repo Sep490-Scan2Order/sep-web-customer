@@ -2,7 +2,22 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, CalendarClock, CheckCircle2, Loader2, QrCode, ShoppingCart, Ticket, Tag, Clock, Flame, CalendarDays, Utensils } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  CalendarClock,
+  CheckCircle2,
+  ChevronRight,
+  Loader2,
+  QrCode,
+  ShoppingCart,
+  Ticket,
+  Tag,
+  Clock,
+  Flame,
+  CalendarDays,
+  Utensils,
+} from "lucide-react";
 import { MainLayout } from "@/components/ui/common";
 import { ROUTES } from "@/constants/routes";
 import {
@@ -14,6 +29,7 @@ import {
   savePendingBankTransfer,
   clearPendingBankTransfer,
   loadPendingBankTransfer,
+  type CartItem,
   type CartResponse,
   type CheckoutBankTransferResponse,
   type PromotionResponse,
@@ -79,6 +95,51 @@ function calcPromotionDiscount(
 function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={`rounded-2xl bg-white px-4 shadow-sm ${className}`}>{children}</div>
+  );
+}
+
+function OrderItemRowPreorder({
+  item,
+  dishImageUrlById,
+}: {
+  item: CartItem;
+  dishImageUrlById: Record<number, string>;
+}) {
+  const src = item.imageUrl?.trim() || dishImageUrlById[item.dishId]?.trim();
+  return (
+    <div className="flex w-full items-center gap-3 py-3">
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
+        <Utensils className="h-5 w-5 text-slate-300" />
+        {src ? (
+          <img
+            src={src}
+            alt={item.dishName}
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
+          />
+        ) : null}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-slate-800">
+          {item.dishName}{" "}
+          <span className="ml-0.5 font-bold text-slate-500">x{item.quantity}</span>
+        </p>
+        {item.promotionName && (
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+            <Tag className="h-2.5 w-2.5 shrink-0" />
+            {item.promotionName}
+          </span>
+        )}
+        {item.promotionAmount > 0 && (
+          <p className="mt-0.5 text-xs text-slate-400 line-through">
+            {formatVND(item.originalPrice * item.quantity)}
+          </p>
+        )}
+      </div>
+      <span className="shrink-0 text-sm font-bold text-slate-900">{formatVND(item.subTotal)}</span>
+    </div>
   );
 }
 
@@ -336,267 +397,284 @@ function CheckoutPreorderContent() {
   const finalAmount = Math.max(0, orderTotal - discountAmount);
   const effectiveDiscount = Math.max(0, orderTotal - (selectedPromo ? finalAmount : orderTotal));
 
+  const backToMenuHref = useMemo(() => {
+    const slug = restaurantSlug.trim();
+    if (slug) {
+      const q = new URLSearchParams({ restaurant: slug });
+      if (restaurantIdParam) q.set("restaurantId", restaurantIdParam);
+      return `${ROUTES.MENU}?${q.toString()}`;
+    }
+    return ROUTES.MENU;
+  }, [restaurantSlug, restaurantIdParam]);
+
+  const contentColumnClass =
+    "mx-auto w-full max-w-lg sm:max-w-xl md:max-w-2xl px-4 sm:px-6";
+
   return (
     <MainLayout hideHeader hideFooter>
-      <div className="min-h-screen w-full bg-white">
-        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 py-4">
-          <div className="flex items-center gap-3">
+      <div className="flex min-h-screen w-full flex-col bg-slate-50">
+        {!orderResult && (
+          <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-6">
             <button
               type="button"
               onClick={() => router.back()}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 active:scale-95"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 active:scale-95"
               aria-label="Quay lại"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
-            <div className="flex-1">
-              <h1 className="text-xl font-extrabold text-emerald-800">Thanh toán đơn đặt trước</h1>
-              <p className="mt-0.5 text-sm text-slate-600">
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-extrabold text-emerald-800">Thanh toán đơn đặt trước</p>
+              <p className="mt-0.5 text-xs text-slate-600 sm:text-sm">
                 Thanh toán chuyển khoản và chọn thời gian nhận đơn.
               </p>
             </div>
-          </div>
-        </div>
+            <ShoppingCart className="h-5 w-5 shrink-0 text-emerald-600" />
+          </header>
+        )}
 
-        <div className="px-0 py-4">
+        {!orderResult ? (
+          <>
+            <div className="flex flex-1 flex-col gap-3 bg-gradient-to-b from-emerald-50/50 to-slate-50 py-4 pb-40 sm:px-2">
+              <div className={contentColumnClass}>
+                {cartError && (
+                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                    <p className="text-sm text-rose-700">{cartError}</p>
+                  </div>
+                )}
 
-          {cartError && !orderResult && (
-            <div className="mx-4 mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {cartError}
-            </div>
-          )}
-
-          {!orderResult ? (
-            <>
-              {cart && (
-                <div className="mt-4 rounded-none border-y border-slate-200 bg-slate-50 p-3 sm:mx-auto sm:max-w-3xl sm:rounded-xl sm:border">
-                  <div className="flex items-center gap-2 text-slate-700">
-                    <ShoppingCart className="h-4 w-4" />
-                    <div className="flex flex-col">
+                {cart && (
+                  <SectionCard>
+                    <div className="flex items-center gap-2 py-3 text-slate-700">
+                      <ShoppingCart className="h-4 w-4" />
                       <p className="text-sm font-semibold">{totalItems} món</p>
                     </div>
-                  </div>
-                  <ul className="mt-3 divide-y divide-slate-100 border-t border-slate-100 pt-1">
-                    {cart.items.map((item) => (
-                      <li key={item.dishId} className="flex items-center gap-3 py-2 w-full">
-                        <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
-                          <Utensils className="h-5 w-5 text-slate-300" />
-                          {(() => {
-                            const src =
-                              item.imageUrl?.trim() || dishImageUrlById[item.dishId]?.trim();
-                            return src ? (
-                              <img
-                                src={src}
-                                alt={item.dishName}
-                                className="absolute inset-0 h-full w-full object-cover"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                                }}
-                              />
-                            ) : null;
-                          })()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-800">
-                            {item.dishName} <span className="font-bold text-slate-500 ml-0.5">x{item.quantity}</span>
-                          </p>
-                          {item.promotionName && (
-                            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                              <Tag className="h-2.5 w-2.5 shrink-0" />
-                              {item.promotionName}
-                            </span>
-                          )}
-                          {item.promotionAmount > 0 && (
-                            <p className="mt-0.5 text-xs text-slate-400 line-through">
-                              {formatVND(item.originalPrice * item.quantity)}
-                            </p>
-                          )}
-                        </div>
-                        <span className="shrink-0 font-bold text-slate-900">{formatVND(item.subTotal)}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* Tổng kết thanh toán (giống trang checkout) */}
-                  <div className="mt-3 border-t border-slate-200 pt-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-semibold text-slate-600">Tổng cộng</span>
-                      <span className={selectedPromo ? "text-slate-400 line-through" : "font-bold text-slate-900"}>
-                        {formatVND(cart.totalAmount)}
-                      </span>
+                    <div className="divide-y divide-slate-100 border-t border-slate-100 pt-1">
+                      {cart.items.map((item) => (
+                        <OrderItemRowPreorder
+                          key={item.dishId}
+                          item={item}
+                          dishImageUrlById={dishImageUrlById}
+                        />
+                      ))}
                     </div>
+                    <div className="h-px bg-slate-100" />
+                    <div className="flex items-center justify-between py-3">
+                      <p className="text-sm font-semibold text-slate-600">Tổng cộng</p>
+                      <p className="text-lg font-extrabold text-slate-900">{formatVND(cart.totalAmount)}</p>
+                    </div>
+                  </SectionCard>
+                )}
 
-                    {selectedPromo && discountAmount > 0 && (
-                      <div className="mt-1 flex items-center justify-between text-sm">
-                        <span className="font-semibold text-emerald-700">Giảm</span>
-                        <span className="font-bold text-emerald-700">- {formatVND(effectiveDiscount)}</span>
-                      </div>
-                    )}
+                {cart && (promotions.length > 0 || loadingPromotions) && (
+                  <SectionCard className="mt-3 py-3">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Ticket className="h-4 w-4 text-emerald-500" />
+                      <p className="text-sm font-extrabold text-slate-800">Khuyến mãi & Ưu đãi</p>
+                      {loadingPromotions && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {promotions.map((promo) => {
+                        const isSelected = selectedPromotionId === promo.id;
+                        let Icon = Tag;
+                        if (promo.type === 1) Icon = Clock;
+                        if (promo.type === 2) Icon = Flame;
+                        if (promo.type === 3) Icon = CalendarDays;
 
-                    <div className="mt-2 flex items-end justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-extrabold uppercase tracking-wide text-slate-400">
-                          Tổng thanh toán
+                        let tagLabel = "";
+                        if (promo.discountType === 0) tagLabel = `-${promo.discountValue}%`;
+                        else tagLabel = `-${formatVND(promo.discountValue)}`;
+
+                        return (
+                          <label
+                            key={promo.id}
+                            className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition ${
+                              isSelected
+                                ? "border-emerald-500 bg-emerald-50/50"
+                                : "border-slate-100 bg-white hover:border-slate-200"
+                            }`}
+                          >
+                            <div className="flex h-5 items-center">
+                              <input
+                                type="radio"
+                                name="promotion"
+                                checked={isSelected}
+                                onChange={() => setSelectedPromotionId(promo.id)}
+                                className="h-4 w-4 cursor-pointer text-emerald-600 focus:ring-emerald-500"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <Icon
+                                  className={`h-3.5 w-3.5 ${
+                                    promo.type === 2
+                                      ? "text-rose-500"
+                                      : promo.type === 1
+                                        ? "text-blue-500"
+                                        : promo.type === 3
+                                          ? "text-amber-500"
+                                          : "text-slate-500"
+                                  }`}
+                                />
+                                <p className="break-words text-sm font-bold text-slate-800">{promo.name}</p>
+                                <span className="shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
+                                  {tagLabel}
+                                </span>
+                                {promo.isRecommended && (
+                                  <span className="shrink-0 rounded border border-emerald-200 bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                                    Tốt nhất
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                                Đơn từ {formatVND(promo.minOrderValue)}
+                                {promo.discountType === 0 && promo.maxDiscountValue
+                                  ? ` • Tối đa ${formatVND(promo.maxDiscountValue)}`
+                                  : ""}
+                              </p>
+                              {promo.endDate && (
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                  HSD: {new Date(promo.endDate).toLocaleDateString("vi-VN")}
+                                </p>
+                              )}
+                              {promo.type === 1 && promo.dailyEndTime && (
+                                <p className="mt-0.5 text-[11px] text-slate-400">
+                                  Hiệu lực {promo.dailyStartTime?.slice(0, 5)} -{" "}
+                                  {promo.dailyEndTime?.slice(0, 5)}
+                                </p>
+                              )}
+                            </div>
+                          </label>
+                        );
+                      })}
+                      {promotions.length > 0 && selectedPromotionId !== null && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPromotionId(null)}
+                          className="mt-1 self-start p-1 text-xs font-semibold text-slate-400 hover:text-slate-600"
+                        >
+                          Bỏ chọn khuyến mãi
+                        </button>
+                      )}
+                    </div>
+                  </SectionCard>
+                )}
+
+                {cart && (
+                  <>
+                    <SectionCard className="mt-3 py-3">
+                      <label className="block">
+                        <span className="text-sm font-semibold text-slate-700">Số điện thoại</span>
+                        <input
+                          value={phone}
+                          onChange={(e) => {
+                            setPhone(e.target.value);
+                            setPhoneError(null);
+                          }}
+                          inputMode="tel"
+                          placeholder="VD: 0901234567"
+                          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                        />
+                        {phoneError && (
+                          <p className="mt-1.5 text-xs font-semibold text-rose-600">{phoneError}</p>
+                        )}
+                      </label>
+                    </SectionCard>
+
+                    <SectionCard className="mt-3 py-3">
+                      <label className="block">
+                        <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                          <CalendarClock className="h-4 w-4 text-emerald-700" />
+                          Thời gian nhận đơn
                         </span>
-                      </div>
-                      <span className="text-lg font-extrabold text-slate-900">
+                        <input
+                          type="datetime-local"
+                          value={pickupAt}
+                          min={pickupMin}
+                          required
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            const nextTime = new Date(next).getTime();
+                            const minTime = new Date(pickupMin).getTime();
+                            if (
+                              Number.isFinite(nextTime) &&
+                              Number.isFinite(minTime) &&
+                              nextTime < minTime
+                            ) {
+                              setPickupAt(pickupMin);
+                            } else {
+                              setPickupAt(next);
+                            }
+                            setPickupError(null);
+                          }}
+                          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 invalid:border-rose-300 invalid:bg-slate-50 invalid:text-slate-400"
+                        />
+                        {pickupError && (
+                          <p className="mt-1.5 text-xs font-semibold text-rose-600">{pickupError}</p>
+                        )}
+                      </label>
+                    </SectionCard>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {cart && (
+              <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-slate-200 bg-white px-4 py-3 shadow-2xl sm:px-6">
+                <div className={contentColumnClass}>
+                  {selectedPromo && discountAmount > 0 && (
+                    <div className="mb-1 flex items-center justify-between px-1 text-xs font-semibold text-emerald-700">
+                      <span>Giảm</span>
+                      <span>- {formatVND(effectiveDiscount)}</span>
+                    </div>
+                  )}
+                  <div className="mb-2 flex items-center justify-between px-1 text-sm">
+                    <span className="font-semibold text-slate-600">Tổng thanh toán</span>
+                    <div className="flex flex-col items-end">
+                      {selectedPromo && discountAmount > 0 && (
+                        <span className="mb-0.5 text-xs text-slate-400 line-through">
+                          {formatVND(cart.totalAmount)}
+                        </span>
+                      )}
+                      <span className="text-lg font-extrabold leading-none text-slate-900">
                         {formatVND(selectedPromo ? finalAmount : cart.totalAmount)}
                       </span>
                     </div>
                   </div>
-                </div>
-              )}
-
-              {/* Khuyến mãi */}
-              {cart && (promotions.length > 0 || loadingPromotions) && (
-                <div className="mt-4 rounded-none border-y border-slate-200 bg-slate-50 p-3 sm:mx-auto sm:max-w-3xl sm:rounded-xl sm:border">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Ticket className="h-4 w-4 text-emerald-500" />
-                    <p className="text-sm font-extrabold text-slate-800">Khuyến mãi & Ưu đãi</p>
-                    {loadingPromotions && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {promotions.map(promo => {
-                      const isSelected = selectedPromotionId === promo.id;
-                      let Icon = Tag;
-                      if (promo.type === 1) Icon = Clock;
-                      if (promo.type === 2) Icon = Flame;
-                      if (promo.type === 3) Icon = CalendarDays;
-
-                      let tagLabel = "";
-                      if (promo.discountType === 0) tagLabel = `-${promo.discountValue}%`;
-                      else tagLabel = `-${formatVND(promo.discountValue)}`;
-
-                      return (
-                        <label
-                          key={promo.id}
-                          className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition ${
-                            isSelected ? "border-emerald-500 bg-emerald-50/50" : "border-slate-100 bg-white hover:border-slate-200"
-                          }`}
-                        >
-                          <div className="flex h-5 items-center">
-                            <input
-                              type="radio"
-                              name="promotion"
-                              checked={isSelected}
-                              onChange={() => setSelectedPromotionId(promo.id)}
-                              className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                            />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center flex-wrap gap-1.5">
-                              <Icon className={`h-3.5 w-3.5 ${promo.type === 2 ? 'text-rose-500' : promo.type === 1 ? 'text-blue-500' : promo.type === 3 ? 'text-amber-500' : 'text-slate-500'}`} />
-                              <p className="text-sm font-bold text-slate-800 break-words">{promo.name}</p>
-                              <span className="shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
-                                {tagLabel}
-                              </span>
-                              {promo.isRecommended && (
-                                <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                                  Tốt nhất
-                                </span>
-                              )}
-                            </div>
-                            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                              Đơn từ {formatVND(promo.minOrderValue)}
-                              {promo.discountType === 0 && promo.maxDiscountValue ? ` • Tối đa ${formatVND(promo.maxDiscountValue)}` : ""}
-                            </p>
-                            {promo.endDate && (
-                              <p className="mt-0.5 text-[11px] text-slate-400">
-                                HSD: {new Date(promo.endDate).toLocaleDateString("vi-VN")}
-                              </p>
-                            )}
-                            {promo.type === 1 && promo.dailyEndTime && (
-                              <p className="mt-0.5 text-[11px] text-slate-400">
-                                Hiệu lực {promo.dailyStartTime?.slice(0, 5)} - {promo.dailyEndTime?.slice(0, 5)}
-                              </p>
-                            )}
-                          </div>
-                        </label>
-                      );
-                    })}
-                    {promotions.length > 0 && selectedPromotionId !== null && (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPromotionId(null)}
-                        className="mt-1 text-xs font-semibold text-slate-400 hover:text-slate-600 self-start p-1"
-                      >
-                        Bỏ chọn khuyến mãi
-                      </button>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={handleCheckoutBankTransfer}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-4 text-base font-extrabold text-white shadow-lg shadow-emerald-200/50 transition hover:bg-emerald-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-5 w-5 animate-spin" />
+                        Đang tạo mã chuyển khoản...
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="h-5 w-5" />
+                        Đặt hàng ngay
+                        <ChevronRight className="h-5 w-5" />
+                      </>
                     )}
-                  </div>
+                  </button>
                 </div>
-              )}
-
-              <div className="mx-4 mt-4 grid grid-cols-1 gap-3 sm:mx-auto sm:max-w-3xl">
-                <label className="block">
-                  <span className="text-sm font-semibold text-slate-700">Số điện thoại</span>
-                  <input
-                    value={phone}
-                    onChange={(e) => {
-                      setPhone(e.target.value);
-                      setPhoneError(null);
-                    }}
-                    inputMode="tel"
-                    placeholder="VD: 0901234567"
-                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-emerald-400"
-                  />
-                  {phoneError && <p className="mt-1 text-xs font-semibold text-rose-600">{phoneError}</p>}
-                </label>
-
-                <label className="block">
-                  <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
-                    <CalendarClock className="h-4 w-4 text-emerald-700" />
-                    Thời gian nhận đơn
-                  </span>
-                  <input
-                    type="datetime-local"
-                    value={pickupAt}
-                    min={pickupMin}
-                    required
-                    onChange={(e) => {
-                      const next = e.target.value;
-                      // Clamp: nếu user nhập quá khứ (hoặc min vừa nhảy lên), tự đẩy về min
-                      const nextTime = new Date(next).getTime();
-                      const minTime = new Date(pickupMin).getTime();
-                      if (Number.isFinite(nextTime) && Number.isFinite(minTime) && nextTime < minTime) {
-                        setPickupAt(pickupMin);
-                      } else {
-                        setPickupAt(next);
-                      }
-                      setPickupError(null);
-                    }}
-                    className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-emerald-400 invalid:text-slate-400 invalid:border-rose-300 invalid:bg-slate-50"
-                  />
-                  {pickupError && <p className="mt-1 text-xs font-semibold text-rose-600">{pickupError}</p>}
-                </label>
               </div>
-
-              <button
-                type="button"
-                disabled={submitting || !cart}
-                onClick={handleCheckoutBankTransfer}
-                className="mx-4 mt-4 inline-flex w-[calc(100%-2rem)] items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 sm:mx-auto sm:w-full sm:max-w-3xl"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Đang tạo mã chuyển khoản...
-                  </>
-                ) : (
-                  "Thanh toán chuyển khoản"
-                )}
-              </button>
-            </>
-          ) : bankConfirmed ? (
-            <div className="mt-4">
-              <div className="flex flex-col items-center gap-3 rounded-2xl bg-emerald-500 px-4 pb-8 pt-8 text-white">
+            )}
+          </>
+        ) : bankConfirmed ? (
+          <div className={`${contentColumnClass} space-y-3 pb-8 pt-4`}>
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-emerald-500 px-4 pb-8 pt-8 text-white shadow-md">
                 <CheckCircle2 className="h-16 w-16" />
                 <p className="text-2xl font-extrabold">Đặt hàng thành công!</p>
                 <p className="text-sm text-emerald-100">{orderResult.restaurantName}</p>
               </div>
 
-              <div className="-mt-4 flex flex-col gap-3 pb-2">
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+              <div className="-mt-2 flex flex-col gap-3">
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                     <div>
@@ -608,7 +686,7 @@ function CheckoutPreorderContent() {
                   </div>
                 </div>
 
-                <SectionCard className="py-4">
+                <SectionCard className="border border-slate-100 py-4 shadow-sm">
                   <div className="flex items-center justify-between py-2">
                     <span className="text-sm text-slate-500">Tổng tiền</span>
                     <span className="text-base font-extrabold text-emerald-600">
@@ -636,16 +714,16 @@ function CheckoutPreorderContent() {
 
                 <button
                   type="button"
-                  onClick={() => router.push(ROUTES.HOME)}
-                  className="mt-2 w-full rounded-2xl bg-emerald-500 py-4 text-base font-extrabold text-white shadow-md active:scale-95"
+                  onClick={() => router.push(backToMenuHref)}
+                  className="mt-2 w-full rounded-2xl bg-emerald-500 py-4 text-base font-extrabold text-white shadow-md active:scale-[0.99]"
                 >
-                  Quay về trang chủ
+                  Quay về menu
                 </button>
               </div>
             </div>
           ) : (
-            <div className="mt-4">
-              <div className="flex flex-col items-center gap-3 rounded-2xl bg-blue-500 px-4 pb-8 pt-8 text-white">
+          <div className={`${contentColumnClass} space-y-3 pb-8 pt-4`}>
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-blue-500 px-4 pb-8 pt-8 text-white shadow-md">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
                   <QrCode className="h-9 w-9 text-white" />
                 </div>
@@ -653,21 +731,21 @@ function CheckoutPreorderContent() {
                 <p className="text-sm text-blue-100">{orderResult.restaurantName}</p>
               </div>
 
-              <div className="-mt-4 flex flex-col gap-3 pb-2">
+              <div className="-mt-2 flex flex-col gap-3">
                 {orderResult.qrUrl && (
-                  <SectionCard className="flex flex-col items-center gap-2 py-4">
+                  <SectionCard className="flex flex-col items-center gap-2 border border-slate-100 py-4 shadow-sm">
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                       QR thanh toán VietQR
                     </p>
                     <img
                       src={orderResult.qrUrl}
                       alt="VietQR"
-                      className="h-52 w-52 rounded-xl border border-slate-200 object-contain"
+                      className="h-auto w-full max-w-[min(100%,13.5rem)] rounded-xl border border-slate-200 object-contain sm:max-w-[15rem]"
                     />
                   </SectionCard>
                 )}
 
-                <SectionCard className="py-4">
+                <SectionCard className="border border-slate-100 py-4 shadow-sm">
                   <div className="flex items-center justify-between py-2">
                     <span className="text-sm text-slate-500">Số tiền</span>
                     <span className="text-base font-extrabold text-blue-600">
@@ -698,15 +776,14 @@ function CheckoutPreorderContent() {
 
                 <button
                   type="button"
-                  onClick={() => router.push(ROUTES.HOME)}
-                  className="mt-2 w-full rounded-2xl bg-slate-900 py-4 text-base font-extrabold text-white shadow-md active:scale-95"
+                  onClick={() => router.push(backToMenuHref)}
+                  className="mt-2 w-full rounded-2xl bg-slate-900 py-4 text-base font-extrabold text-white shadow-md active:scale-[0.99]"
                 >
-                  Quay về trang chủ
+                  Quay về menu
                 </button>
               </div>
             </div>
           )}
-        </div>
       </div>
     </MainLayout>
   );

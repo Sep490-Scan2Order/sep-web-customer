@@ -71,7 +71,7 @@ function OrderItemRow({ item }: { item: CartItem }) {
           {item.dishName} <span className="font-bold text-slate-500 ml-0.5">x{item.quantity}</span>
         </p>
         {item.promotionName && (
-          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-800 ring-1 ring-orange-200">
             <Tag className="h-2.5 w-2.5 shrink-0" />
             {item.promotionName}
           </span>
@@ -82,7 +82,7 @@ function OrderItemRow({ item }: { item: CartItem }) {
           </p>
         )}
       </div>
-      <p className="shrink-0 text-sm font-bold text-slate-900">{formatVND(item.subTotal)}</p>
+      <p className="shrink-0 text-sm font-bold text-orange-600">{formatVND(item.subTotal)}</p>
     </div>
   );
 }
@@ -287,13 +287,13 @@ function CheckoutContent() {
   /* ── Error / loading cart ── */
   if (cartError) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 p-6">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white p-6">
         <AlertCircle className="h-12 w-12 text-rose-400" />
         <p className="text-center text-sm font-semibold text-slate-700">{cartError}</p>
         <button
           type="button"
           onClick={() => router.push(backHref)}
-          className="rounded-xl bg-slate-800 px-6 py-2.5 text-sm font-bold text-white"
+          className="rounded-xl bg-orange-500 px-6 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-orange-600 active:scale-[0.98]"
         >
           Quay về menu
         </button>
@@ -367,7 +367,7 @@ function CheckoutContent() {
             <button
               type="button"
               onClick={() => { clearOrderData(); router.push(backHref); }}
-              className="mt-2 w-full rounded-2xl bg-emerald-500 py-4 text-base font-extrabold text-white shadow-md active:scale-95"
+              className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
             >
               Quay về menu
             </button>
@@ -428,7 +428,7 @@ function CheckoutContent() {
           <button
             type="button"
             onClick={() => { clearOrderData(); router.push(backHref); }}
-            className="mt-2 w-full rounded-2xl bg-slate-900 py-4 text-base font-extrabold text-white shadow-md active:scale-95"
+            className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
           >
             Quay về menu
           </button>
@@ -495,7 +495,7 @@ function CheckoutContent() {
             <button
               type="button"
               onClick={() => { clearOrderData(); router.push(backHref); }}
-              className="mt-2 w-full rounded-2xl bg-emerald-500 py-4 text-base font-extrabold text-white shadow-md active:scale-95"
+              className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
             >
               Quay về menu
             </button>
@@ -552,7 +552,7 @@ function CheckoutContent() {
           <button
             type="button"
             onClick={() => { clearOrderData(); router.push(backHref); }}
-            className="mt-2 w-full rounded-2xl bg-slate-900 py-4 text-base font-extrabold text-white shadow-md active:scale-95"
+            className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
           >
             Quay về menu
           </button>
@@ -564,8 +564,8 @@ function CheckoutContent() {
   /* ── Loading cart ── */
   if (!cart) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
       </div>
     );
   }
@@ -577,31 +577,31 @@ function CheckoutContent() {
   const finalAmountRounded = Math.round(finalAmountCalculated / 1000) * 1000;
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-white">
       {/* Header */}
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-orange-100 bg-white px-4 py-3 shadow-sm">
         <button
           type="button"
           onClick={() => router.push(backHref)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-orange-200 text-orange-700 hover:bg-orange-50"
         >
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex-1">
           <p className="text-base font-extrabold text-slate-900">Xác nhận đơn hàng</p>
         </div>
-        <ShoppingBag className="h-5 w-5 text-slate-400" />
+        <ShoppingBag className="h-5 w-5 text-orange-400" />
       </header>
 
-      <div className="flex flex-1 flex-col gap-3 px-4 py-4 pb-36">
+      <div className="flex flex-1 flex-col gap-3 bg-gradient-to-b from-orange-50/50 to-white px-4 py-4 pb-36">
         {/* Danh sách món */}
         <SectionCard>
           <div className="flex items-center justify-between py-3">
             <div className="flex items-center gap-2">
-              <ReceiptText className="h-4 w-4 text-slate-400" />
+              <ReceiptText className="h-4 w-4 text-orange-500" />
               <p className="text-sm font-extrabold text-slate-800">Đơn hàng của bạn</p>
             </div>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-800">
               {cart.items.length} món
             </span>
           </div>
@@ -613,7 +613,7 @@ function CheckoutContent() {
           <div className="h-px bg-slate-100" />
           <div className="flex items-center justify-between py-3">
             <p className="text-sm font-semibold text-slate-600">Tổng cộng</p>
-            <p className="text-lg font-extrabold text-slate-900">{formatVND(cart.totalAmount)}</p>
+            <p className="text-lg font-extrabold text-orange-600">{formatVND(cart.totalAmount)}</p>
           </div>
         </SectionCard>
 
@@ -621,7 +621,7 @@ function CheckoutContent() {
         {(promotions.length > 0 || loadingPromotions) && (
           <SectionCard className="py-3">
             <div className="flex items-center gap-2 mb-3">
-              <Ticket className="h-4 w-4 text-emerald-500" />
+              <Ticket className="h-4 w-4 text-orange-500" />
               <p className="text-sm font-extrabold text-slate-800">Khuyến mãi & Ưu đãi</p>
               {loadingPromotions && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
             </div>
@@ -641,7 +641,7 @@ function CheckoutContent() {
                   <label
                     key={promo.id}
                     className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition ${
-                      isSelected ? "border-emerald-500 bg-emerald-50/50" : "border-slate-100 bg-white hover:border-slate-200"
+                      isSelected ? "border-orange-500 bg-orange-50/70" : "border-slate-100 bg-white hover:border-orange-200"
                     }`}
                   >
                     <div className="flex h-5 items-center">
@@ -650,7 +650,7 @@ function CheckoutContent() {
                         name="promotion"
                         checked={isSelected}
                         onChange={() => setSelectedPromotionId(promo.id)}
-                        className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        className="h-4 w-4 text-orange-600 focus:ring-orange-500 cursor-pointer"
                       />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -661,7 +661,7 @@ function CheckoutContent() {
                           {tagLabel}
                         </span>
                         {promo.isRecommended && (
-                          <span className="shrink-0 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                          <span className="shrink-0 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-800 border border-orange-200">
                             Tốt nhất
                           </span>
                         )}
@@ -699,7 +699,7 @@ function CheckoutContent() {
 
         {/* Thông tin khách */}
         <SectionCard className="py-3">
-          <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+          <p className="mb-2 text-xs font-extrabold uppercase tracking-wide text-orange-600/80">
             Thông tin liên hệ
           </p>
           <input
@@ -712,7 +712,7 @@ function CheckoutContent() {
               if (step.kind === "error") setStep({ kind: "form" });
             }}
             placeholder="Số điện thoại (VD: 0901234567)"
-            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
+            className="h-12 w-full rounded-xl border border-orange-100 bg-white px-4 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-orange-400 focus:bg-white focus:ring-2 focus:ring-orange-100"
             disabled={isLoading}
           />
           {phoneError && (
@@ -722,7 +722,7 @@ function CheckoutContent() {
 
         {/* Phương thức thanh toán */}
         <SectionCard className="py-3">
-          <p className="mb-3 text-xs font-extrabold uppercase tracking-wide text-slate-400">
+          <p className="mb-3 text-xs font-extrabold uppercase tracking-wide text-orange-600/80">
             Phương thức thanh toán
           </p>
           <div className="flex flex-col gap-2">
@@ -749,8 +749,8 @@ function CheckoutContent() {
                 onClick={() => setSelectedMethod(m.id)}
                 className={`flex items-center gap-3 rounded-xl border-2 px-4 py-3 text-left transition ${
                   selectedMethod === m.id
-                    ? "border-slate-800 bg-slate-800"
-                    : "border-slate-200 bg-white hover:border-slate-300"
+                    ? "border-orange-500 bg-orange-500 shadow-md shadow-orange-200/40"
+                    : "border-slate-200 bg-white hover:border-orange-200"
                 }`}
               >
                 <span className={selectedMethod === m.id ? "text-white" : "text-slate-500"}>
@@ -766,7 +766,7 @@ function CheckoutContent() {
                   </p>
                   <p
                     className={`text-xs ${
-                      selectedMethod === m.id ? "text-slate-300" : "text-slate-400"
+                      selectedMethod === m.id ? "text-orange-100" : "text-slate-400"
                     }`}
                   >
                     {m.desc}
@@ -774,7 +774,7 @@ function CheckoutContent() {
                 </div>
                 {selectedMethod === m.id && (
                   <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white">
-                    <div className="h-2.5 w-2.5 rounded-full bg-slate-800" />
+                    <div className="h-2.5 w-2.5 rounded-full bg-orange-500" />
                   </div>
                 )}
               </button>
@@ -792,10 +792,10 @@ function CheckoutContent() {
       </div>
 
       {/* Sticky bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-slate-200 bg-white px-4 py-3 shadow-2xl">
+      <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-orange-100 bg-white px-4 py-3 shadow-2xl">
         <div className="mx-auto max-w-lg">
           {selectedPromo && (
-            <div className="mb-1 flex items-center justify-between px-1 text-xs font-semibold text-emerald-600">
+            <div className="mb-1 flex items-center justify-between px-1 text-xs font-semibold text-orange-600">
               <span>Đã áp dụng mã</span>
               <span>-{formatVND(discountAmount)}</span>
             </div>
@@ -806,14 +806,14 @@ function CheckoutContent() {
               {selectedPromo && (
                 <span className="text-xs text-slate-400 line-through mb-0.5">{formatVND(cart.totalAmount)}</span>
               )}
-              <span className="font-extrabold text-slate-900 text-lg leading-none">{formatVND(finalAmountRounded)}</span>
+              <span className="font-extrabold text-orange-600 text-lg leading-none">{formatVND(finalAmountRounded)}</span>
             </div>
           </div>
           <button
             type="button"
             disabled={isLoading}
             onClick={handlePlaceOrder}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 py-4 text-base font-extrabold text-white shadow-lg transition active:scale-[0.98] disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-lg shadow-orange-200/50 transition hover:bg-orange-600 active:scale-[0.98] disabled:opacity-60"
           >
             {isLoading ? (
               <>
@@ -842,8 +842,8 @@ export default function CheckoutPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-slate-50">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <div className="flex min-h-screen items-center justify-center bg-white">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
         </div>
       }
     >
