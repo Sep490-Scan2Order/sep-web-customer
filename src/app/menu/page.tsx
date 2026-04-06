@@ -20,8 +20,9 @@ import { ROUTES } from "@/constants/routes";
 import { API, API_BASE_URL } from "@/services/api";
 import {
   addToCart,
-  CART_DATA_STORAGE_KEY,
   CART_ID_STORAGE_KEY,
+  loadCartCache,
+  saveCartCache,
   type CartResponse,
 } from "@/services/orderCustomerService";
 import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
@@ -471,18 +472,14 @@ function MenuContent() {
 
           if (typeof window !== "undefined") {
             try {
-              const cId = window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId));
-              if (cId) {
-                const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cId));
-                if (raw) {
-                  const parsed = JSON.parse(raw) as CartResponse;
-                  setCartData(parsed);
-                  const qs: Record<number, number> = {};
-                  parsed.items?.forEach((i) => {
-                    qs[i.dishId] = i.quantity;
-                  });
-                  setQuantities(qs);
-                }
+              const parsed = loadCartCache(restaurantId);
+              if (parsed) {
+                setCartData(parsed);
+                const qs: Record<number, number> = {};
+                parsed.items?.forEach((i) => {
+                  qs[i.dishId] = i.quantity;
+                });
+                setQuantities(qs);
               }
             } catch {
               // ignore invalid localstorage
@@ -663,10 +660,9 @@ function MenuContent() {
     setCartLoading(true);
     setCartError(null);
 
-    const storageKey = CART_ID_STORAGE_KEY(restaurantId);
     let cartId: string | null =
       typeof window !== "undefined"
-        ? window.localStorage.getItem(storageKey)
+        ? window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId))
         : null;
 
     // Ghi lại những gì FE đã gửi để so sánh với response sau
@@ -693,10 +689,6 @@ function MenuContent() {
 
         cartId = result.cartId;
         lastCart = result;
-
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(storageKey, cartId);
-        }
       }
 
       if (lastCart) {
@@ -738,9 +730,11 @@ function MenuContent() {
 
         // Lưu cart data vào localStorage để trang checkout đọc sau
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(
-            CART_DATA_STORAGE_KEY(lastCart.cartId),
-            JSON.stringify(lastCart)
+          saveCartCache(restaurantId, lastCart);
+          window.dispatchEvent(
+            new CustomEvent("s2o-cart-updated", {
+              detail: { restaurantId: String(restaurantId), cartId: lastCart.cartId },
+            })
           );
         }
       }

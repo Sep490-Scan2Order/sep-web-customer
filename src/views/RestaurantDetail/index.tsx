@@ -179,6 +179,7 @@ export default function RestaurantDetailView({
   }, [r.latitude, r.longitude]);
 
   const handleToggleDish = (dishId: string) => {
+    if (!canReceiveOrders) return;
     setSelectedDishes((prev) => {
       const newSelected = { ...prev };
       if (newSelected[dishId]) {
@@ -191,6 +192,7 @@ export default function RestaurantDetailView({
   };
 
   const handleQuantityChange = (dishId: string, delta: number) => {
+    if (!canReceiveOrders) return;
     setSelectedDishes((prev) => {
       const currentQty = prev[dishId] || 0;
       const newQty = Math.max(1, currentQty + delta);
@@ -203,15 +205,27 @@ export default function RestaurantDetailView({
 
   const distanceText =
     r.distanceKm != null ? `~ ${r.distanceKm.toFixed(1)} km` : "";
-  const isReceivingOrders = r.isReceivingOrders;
-  const statusLabel = isReceivingOrders ? "Đang nhận đơn" : "Tạm ngưng nhận đơn";
-  const statusDot = isReceivingOrders ? "🟢" : "🔴";
+  const isOpened = r.isOpened;
+  const statusLabel = isOpened ? "Đang mở cửa" : "Đã đóng cửa";
+  const statusDot = isOpened ? "🟢" : "🔴";
+  const canReceiveOrders = Boolean(r.isOpened) && Boolean(r.isReceivingOrders);
+
+  const formatTimeHHmm = (t?: string | null) => {
+    if (!t) return "--:--";
+    const trimmed = t.trim();
+    if (trimmed.length >= 5) return trimmed.slice(0, 5);
+    return trimmed;
+  };
+  const scheduleText = `Thứ 2 - Chủ nhật: ${formatTimeHHmm(r.openTime)} - ${formatTimeHHmm(
+    r.closeTime
+  )}`;
   const timeGreeting = getTimeBasedGreeting(now);
   const greetingText = `${timeGreeting}, Khách hàng`;
   const hour = now.getHours();
   const isDaytime = hour >= 6 && hour < 18;
 
   const handleViewMenu = () => {
+    if (!canReceiveOrders) return;
     router.push(`${ROUTES.MENU}?restaurant=${r.slug}`);
   };
 
@@ -241,20 +255,25 @@ export default function RestaurantDetailView({
               </div>
             </div>
 
-            <MenuSection
-              menuData={menuData}
-              menuTemplateData={menuTemplateData}
-              layoutConfig={layoutConfig}
-              activeCategory={activeCategory}
-              setActiveCategory={setActiveCategory}
-              selectedDishes={selectedDishes}
-              onToggleDish={handleToggleDish}
-              onQuantityChange={handleQuantityChange}
-              isMenuLoading={isMenuLoading}
-              menuError={menuError}
-              searchQuery={searchQuery}
-              menuOnly
-            />
+            <div
+              aria-disabled={!canReceiveOrders}
+              className={!canReceiveOrders ? "pointer-events-none opacity-60" : ""}
+            >
+              <MenuSection
+                menuData={menuData}
+                menuTemplateData={menuTemplateData}
+                layoutConfig={layoutConfig}
+                activeCategory={activeCategory}
+                setActiveCategory={setActiveCategory}
+                selectedDishes={selectedDishes}
+                onToggleDish={handleToggleDish}
+                onQuantityChange={handleQuantityChange}
+                isMenuLoading={isMenuLoading}
+                menuError={menuError}
+                searchQuery={searchQuery}
+                menuOnly
+              />
+            </div>
           </div>
         </div>
       ) : (
@@ -267,12 +286,10 @@ export default function RestaurantDetailView({
                   
                   <h1 className="text-xl font-bold uppercase text-slate-800">{r.restaurantName}</h1>
                 </div>
-                {r.address && (
-                  <p className="mt-2 flex items-center gap-1 text-sm text-slate-600">
-                    <MapPin className="h-4 w-4 text-slate-400" />
-                    <span>{r.address}</span>
-                  </p>
-                )}
+                <p className="mt-2 flex items-center gap-1 text-sm text-slate-600">
+                  <MapPin className="h-4 w-4 text-slate-400" />
+                  <span>{scheduleText}</span>
+                </p>
               </div>
 
               <button
@@ -319,6 +336,11 @@ export default function RestaurantDetailView({
                 </span>
               </div>
             </div>
+            {isOpened && !r.isReceivingOrders && (
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                Quán tạm ngưng nhận đơn do số lượng đông
+              </p>
+            )}
           </section>
 
           <section className="mt-4">
@@ -342,10 +364,13 @@ export default function RestaurantDetailView({
             <button
               type="button"
               onClick={handleViewMenu}
-              className="flex w-full items-center justify-between rounded-3xl px-5 py-5 text-left text-xl font-bold text-white shadow-sm transition hover:brightness-95 sm:py-6 sm:text-3xl"
+              disabled={!canReceiveOrders}
+              className="flex w-full items-center justify-between rounded-3xl px-5 py-5 text-left text-xl font-bold text-white shadow-sm transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:py-6 sm:text-3xl"
               style={{ background: "linear-gradient(to right, #F58A1F, #F2CE59)" }}
             >
-              <span>View Menu - Order food</span>
+              <span>
+                {canReceiveOrders ? "View Menu - Order food" : "Tạm ngưng nhận đơn"}
+              </span>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/35 text-xl">
                 ›
               </span>
@@ -354,18 +379,23 @@ export default function RestaurantDetailView({
 
           {menuOpened && (
             <div className="mt-4">
-              <MenuSection
-                menuData={menuData}
-                menuTemplateData={menuTemplateData}
-                layoutConfig={layoutConfig}
-                activeCategory={activeCategory}
-                setActiveCategory={setActiveCategory}
-                selectedDishes={selectedDishes}
-                onToggleDish={handleToggleDish}
-                onQuantityChange={handleQuantityChange}
-                isMenuLoading={isMenuLoading}
-                menuError={menuError}
-              />
+              <div
+                aria-disabled={!canReceiveOrders}
+                className={!canReceiveOrders ? "pointer-events-none opacity-60" : ""}
+              >
+                <MenuSection
+                  menuData={menuData}
+                  menuTemplateData={menuTemplateData}
+                  layoutConfig={layoutConfig}
+                  activeCategory={activeCategory}
+                  setActiveCategory={setActiveCategory}
+                  selectedDishes={selectedDishes}
+                  onToggleDish={handleToggleDish}
+                  onQuantityChange={handleQuantityChange}
+                  isMenuLoading={isMenuLoading}
+                  menuError={menuError}
+                />
+              </div>
             </div>
           )}
 

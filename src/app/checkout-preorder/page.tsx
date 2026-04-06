@@ -23,12 +23,14 @@ import { ROUTES } from "@/constants/routes";
 import {
   CART_DATA_STORAGE_KEY,
   CART_ID_STORAGE_KEY,
+  clearCartCache,
   checkoutBankTransfer,
   getCustomerActiveOrders,
   getAvailablePromotions,
   savePendingBankTransfer,
   clearPendingBankTransfer,
   loadPendingBankTransfer,
+  loadCartByCartId,
   type CartItem,
   type CartResponse,
   type CheckoutBankTransferResponse,
@@ -221,12 +223,12 @@ function CheckoutPreorderContent() {
     } catch { /* ignore */ }
 
     try {
-      const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
-      if (!raw) {
+      const cached = loadCartByCartId(cartId);
+      if (!cached) {
         setCartError("Giỏ hàng đã hết hạn hoặc chưa có dữ liệu.");
         return;
       }
-      setCart(JSON.parse(raw) as CartResponse);
+      setCart(cached as CartResponse);
     } catch {
       setCartError("Không thể đọc giỏ hàng.");
     }
@@ -291,11 +293,10 @@ function CheckoutPreorderContent() {
         if (!cancelled && order && order.status >= 1) {
           setBankConfirmed(true);
           clearPendingBankTransfer();
-          if (cart?.cartId) {
+          if (restaurantIdParam && cart?.cartId) {
+            clearCartCache(restaurantIdParam, cart.cartId);
+          } else if (cart?.cartId) {
             window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
-          }
-          if (restaurantIdParam) {
-            window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
           }
           window.dispatchEvent(
             new CustomEvent("s2o-cart-updated", {
@@ -376,9 +377,10 @@ function CheckoutPreorderContent() {
 
       // Gi\u1ecf h\u00e0ng c\u1ea7n d\u1ecdn s\u1ea1ch ngay khi t\u1ea1o \u0111\u01a1n th\u00e0nh c\u00f4ng
       // \u0111\u1ec3 n\u1ebfu Back v\u1ec1 Menu, kh\u00f4ng gi\u1eef s\u1ed1 l\u01b0\u1ee3ng c\u0169 g\u00e2y l\u1ed7i "h\u1ebft h\u00e0ng"
-      window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
       if (restaurantIdParam) {
-        window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
+        clearCartCache(restaurantIdParam, cart.cartId);
+      } else {
+        window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
       }
     } catch (e: unknown) {
       const msg =

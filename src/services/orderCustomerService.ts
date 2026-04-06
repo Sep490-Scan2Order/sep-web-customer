@@ -36,11 +36,90 @@ export type CartResponse = {
   items: CartItem[];
 };
 
+export const CART_TTL_MS = 60 * 60 * 1000; // 60 phút (đồng bộ TTL Redis)
+
 export const CART_ID_STORAGE_KEY = (restaurantId: number | string) =>
   `s2o_cart_id_${restaurantId}`;
 
 export const CART_DATA_STORAGE_KEY = (cartId: string) =>
   `s2o_cart_data_${cartId}`;
+
+type CartCachePayload =
+  | {
+      v: 1;
+      savedAt: number;
+      cart: CartResponse;
+    }
+  | CartResponse; // legacy format
+
+export function saveCartCache(restaurantId: number | string, cart: CartResponse) {
+  if (typeof window === "undefined") return;
+  const payload: CartCachePayload = { v: 1, savedAt: Date.now(), cart };
+  window.localStorage.setItem(CART_ID_STORAGE_KEY(restaurantId), cart.cartId);
+  window.localStorage.setItem(CART_DATA_STORAGE_KEY(cart.cartId), JSON.stringify(payload));
+}
+
+export function loadCartCache(restaurantId: number | string): CartResponse | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const cartId = window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId));
+    if (!cartId) return null;
+    const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CartCachePayload;
+
+    // New format with TTL
+    if (parsed && typeof parsed === "object" && "v" in parsed && (parsed as { v?: unknown }).v === 1) {
+      const p = parsed as Extract<CartCachePayload, { v: 1 }>;
+      const elapsed = Date.now() - (p.savedAt ?? 0);
+      if (elapsed >= CART_TTL_MS) {
+        window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+        window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantId));
+        return null;
+      }
+      return p.cart ?? null;
+    }
+
+    // Legacy format: treat as expired to avoid "lưu lâu quá"
+    window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+    window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantId));
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearCartCache(restaurantId: number | string, cartId?: string | null) {
+  if (typeof window === "undefined") return;
+  const existingId = cartId ?? window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId));
+  if (existingId) {
+    window.localStorage.removeItem(CART_DATA_STORAGE_KEY(existingId));
+  }
+  window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantId));
+}
+
+export function loadCartByCartId(cartId: string): CartResponse | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as CartCachePayload;
+    if (parsed && typeof parsed === "object" && "v" in parsed && (parsed as { v?: unknown }).v === 1) {
+      const p = parsed as Extract<CartCachePayload, { v: 1 }>;
+      const elapsed = Date.now() - (p.savedAt ?? 0);
+      if (elapsed >= CART_TTL_MS) {
+        window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+        return null;
+      }
+      return p.cart ?? null;
+    }
+    // legacy format
+    window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+    return null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Pending bank transfer session: lưu khi checkout bank thành công,

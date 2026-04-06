@@ -109,7 +109,26 @@ export async function getRestaurantBySlug(
     }
 
     const data: RestaurantSlugResponse = await response.json();
-    if (data.isSuccess && data.data) return data.data;
+    if (data.isSuccess && data.data) {
+      // Một số endpoint theo slug có thể thiếu openTime/closeTime.
+      // Fallback: fetch thêm theo id và chỉ bổ sung các field còn thiếu.
+      const hasOpenTime = Boolean(data.data.openTime?.trim());
+      const hasCloseTime = Boolean(data.data.closeTime?.trim());
+      if (hasOpenTime && hasCloseTime) return data.data;
+
+      try {
+        const fromId = await getRestaurantById(String(data.data.id));
+        if (!fromId) return data.data;
+        return {
+          ...data.data,
+          openTime: data.data.openTime ?? fromId.openTime ?? null,
+          closeTime: data.data.closeTime ?? fromId.closeTime ?? null,
+          minCashAmount: data.data.minCashAmount ?? fromId.minCashAmount ?? null,
+        };
+      } catch {
+        return data.data;
+      }
+    }
     return null;
   } catch (err: unknown) {
     const message = (err as Error).message || "Lỗi không xác định khi gọi API.";

@@ -29,6 +29,8 @@ import {
   CART_ID_STORAGE_KEY,
   savePendingBankTransfer,
   clearPendingBankTransfer,
+  clearCartCache,
+  loadCartByCartId,
   type CartItem,
   type CartResponse,
   type CheckoutBankTransferResponse,
@@ -136,9 +138,12 @@ function CheckoutContent() {
       }
     } catch { /* ignore */ }
     try {
-      const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
-      if (!raw) { setCartError("Giỏ hàng đã hết hạn. Vui lòng thêm lại."); return; }
-      setCart(JSON.parse(raw) as CartResponse);
+      const cached = loadCartByCartId(cartId);
+      if (!cached) {
+        setCartError("Giỏ hàng đã hết hạn. Vui lòng thêm lại.");
+        return;
+      }
+      setCart(cached as CartResponse);
     } catch {
       setCartError("Không thể đọc dữ liệu giỏ hàng.");
     }
@@ -180,8 +185,11 @@ function CheckoutContent() {
 
         if (order && order.status >= 1) {
           setCashConfirmed(true);
-          window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
-          if (restaurantIdParam) window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
+          if (restaurantIdParam) {
+            clearCartCache(restaurantIdParam, cartId);
+          } else {
+            window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+          }
         }
       } catch { /* ignore */ }
     };
@@ -205,8 +213,11 @@ function CheckoutContent() {
         if (order && order.status >= 1) {
           setBankConfirmed(true);
           clearPendingBankTransfer();
-          window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
-          if (restaurantIdParam) window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
+          if (restaurantIdParam) {
+            clearCartCache(restaurantIdParam, cartId);
+          } else {
+            window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
+          }
         }
       } catch { /* ignore */ }
     };
@@ -220,10 +231,11 @@ function CheckoutContent() {
   const isDone = step.kind === "done_cash" || step.kind === "done_bank";
 
   function clearOrderData() {
-    window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
     if (restaurantIdParam) {
-      window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
+      clearCartCache(restaurantIdParam, cartId);
+      return;
     }
+    window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
     // Cố tình không xoá SESSION_RESULT_KEY để người dùng nhấn nút "Quét QR" trên banner
     // quay lại trang này vẫn load được giao diện thanh toán gốc.
   }
@@ -271,9 +283,10 @@ function CheckoutContent() {
       
       // Ngay khi tạo đơn thành công (Dù chưa thanh toán), giỏ hàng cần dọn sạch 
       // để nếu Back về Menu, nó không giữ số lượng cũ gây lỗi "hết hàng". 
-      window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
       if (restaurantIdParam) {
-        window.localStorage.removeItem(CART_ID_STORAGE_KEY(restaurantIdParam));
+        clearCartCache(restaurantIdParam, cartId);
+      } else {
+        window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
       }
     } catch (e: unknown) {
       const msg =

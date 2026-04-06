@@ -11,8 +11,9 @@ import { ROUTES } from "@/constants/routes";
 import { getRestaurantMenuFromRestaurantEndpoint } from "@/services/menuRestaurantTemplateService";
 import {
   addToCart,
-  CART_DATA_STORAGE_KEY,
   CART_ID_STORAGE_KEY,
+  loadCartCache,
+  saveCartCache,
   type CartResponse,
 } from "@/services/orderCustomerService";
 
@@ -132,6 +133,18 @@ export default function RestaurantInfoView({
   const isOpened = r.isOpened;
   const statusLabel = isOpened ? "Đang mở cửa" : "Đã đóng cửa";
   const statusDot = isOpened ? "🟢" : "🔴";
+  const canReceiveOrders = Boolean(r.isOpened) && Boolean(r.isReceivingOrders);
+
+  const formatTimeHHmm = (t?: string | null) => {
+    if (!t) return "--:--";
+    const trimmed = t.trim();
+    if (trimmed.length >= 5) return trimmed.slice(0, 5);
+    return trimmed;
+  };
+
+  const scheduleText = `Thứ 2 - Chủ nhật: ${formatTimeHHmm(
+    r.openTime
+  )} - ${formatTimeHHmm(r.closeTime)}`;
 
   const formatVND = (value: number) =>
     value.toLocaleString("vi-VN", {
@@ -155,6 +168,7 @@ export default function RestaurantInfoView({
   };
 
   function handleIncrementDish(dishId: string) {
+    if (!canReceiveOrders) return;
     setSelectedDishes((prev) => ({
       ...prev,
       [dishId]: (prev[dishId] ?? 0) + 1,
@@ -175,13 +189,9 @@ export default function RestaurantInfoView({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const storageKey = CART_ID_STORAGE_KEY(r.id);
-    const cartId = window.localStorage.getItem(storageKey);
-    if (!cartId) return;
-    const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
-    if (!raw) return;
     try {
-      const parsed = JSON.parse(raw) as CartResponse;
+      const parsed = loadCartCache(r.id);
+      if (!parsed) return;
       setCartData(parsed);
 
       const restoreDishes: Record<string, number> = {};
@@ -199,14 +209,13 @@ export default function RestaurantInfoView({
   }, [r.id]);
 
   async function handleAddToCartFromBar() {
-    if (!hasSelectedDishes || cartLoading) return;
+    if (!hasSelectedDishes || cartLoading || !canReceiveOrders) return;
     setCartLoading(true);
     setCartError(null);
 
-    const storageKey = CART_ID_STORAGE_KEY(r.id);
     let cartId: string | null =
       typeof window !== "undefined"
-        ? window.localStorage.getItem(storageKey)
+        ? window.localStorage.getItem(CART_ID_STORAGE_KEY(r.id))
         : null;
 
     try {
@@ -231,11 +240,7 @@ export default function RestaurantInfoView({
         setCartData(lastCart);
         setSelectedDishes({});
         if (typeof window !== "undefined") {
-          window.localStorage.setItem(storageKey, lastCart.cartId);
-          window.localStorage.setItem(
-            CART_DATA_STORAGE_KEY(lastCart.cartId),
-            JSON.stringify(lastCart)
-          );
+          saveCartCache(r.id, lastCart);
           window.dispatchEvent(
             new CustomEvent("s2o-cart-updated", {
               detail: { restaurantId: String(r.id), cartId: lastCart.cartId },
@@ -286,9 +291,7 @@ export default function RestaurantInfoView({
           {r.description && (
             <p className="mt-1 text-slate-600">{r.description}</p>
           )}
-          {r.address && (
-            <p className="mt-1 text-sm text-slate-500">{r.address}</p>
-          )}
+          <p className="mt-1 text-sm text-slate-500">{scheduleText}</p>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
             {distanceText && (
               <span className="text-slate-500">{distanceText}</span>
@@ -297,6 +300,11 @@ export default function RestaurantInfoView({
               {statusDot} {statusLabel}
             </span>
           </div>
+          {isOpened && !r.isReceivingOrders && (
+            <p className="mt-2 text-sm font-medium text-amber-700">
+              Quán tạm ngưng nhận đơn do số lượng đông
+            </p>
+          )}
         </section>
 
         {/* Action buttons */}
@@ -343,12 +351,10 @@ export default function RestaurantInfoView({
                 </button>
               </div>
               <dl className="space-y-3 text-sm">
-                {r.address && (
-                  <div>
-                    <dt className="font-medium text-slate-500">Địa chỉ</dt>
-                    <dd className="mt-0.5 text-slate-800">{r.address}</dd>
-                  </div>
-                )}
+                <div>
+                  <dt className="font-medium text-slate-500">Lịch bán</dt>
+                  <dd className="mt-0.5 text-slate-800">{scheduleText}</dd>
+                </div>
                 {r.phone && (
                   <div>
                     <dt className="font-medium text-slate-500">Điện thoại</dt>
@@ -368,6 +374,14 @@ export default function RestaurantInfoView({
                     {statusDot} {statusLabel}
                   </dd>
                 </div>
+                {isOpened && !r.isReceivingOrders && (
+                  <div>
+                    <dt className="font-medium text-slate-500">Ghi chú</dt>
+                    <dd className="mt-0.5 text-amber-700">
+                      Quán tạm ngưng nhận đơn do số lượng đông
+                    </dd>
+                  </div>
+                )}
               </dl>
               <p className="mt-4 text-xs text-slate-400">
                 Giờ mở/đóng cửa sẽ cập nhật khi có từ nhà hàng.
@@ -555,7 +569,7 @@ export default function RestaurantInfoView({
                                 <button
                                   type="button"
                                   onClick={() => handleIncrementDish(dish.id)}
-                                  disabled={soldOut}
+                                  disabled={soldOut || !canReceiveOrders}
                                   className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white disabled:cursor-not-allowed disabled:bg-slate-300"
                                 >
                                   <Plus className="h-3 w-3" />
@@ -565,7 +579,7 @@ export default function RestaurantInfoView({
                               <button
                                 type="button"
                                 onClick={() => handleIncrementDish(dish.id)}
-                                disabled={soldOut}
+                                disabled={soldOut || !canReceiveOrders}
                                 className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300 sm:px-4 sm:text-sm"
                               >
                                 <Plus className="h-3 w-3" />
@@ -613,10 +627,14 @@ export default function RestaurantInfoView({
                 <button
                   type="button"
                   onClick={handleAddToCartFromBar}
-                  disabled={cartLoading}
+                  disabled={cartLoading || !canReceiveOrders}
                   className="rounded-xl bg-white px-4 py-2 text-sm font-extrabold text-emerald-700 shadow-md disabled:opacity-60"
                 >
-                  {cartLoading ? "Đang xử lý..." : "Thêm vào giỏ"}
+                  {!canReceiveOrders
+                    ? "Tạm ngưng nhận đơn"
+                    : cartLoading
+                      ? "Đang xử lý..."
+                      : "Thêm vào giỏ"}
                 </button>
               </div>
               {cartError && (

@@ -29,8 +29,11 @@ export interface RestaurantSlugResponseData {
   isOpened: boolean;
   isReceivingOrders: boolean;
   totalOrder: number;
+  openTime?: string | null;
+  closeTime?: string | null;
   createdAt: string;
   distanceKm: number | null;
+  minCashAmount?: number | null;
 }
 
 export interface RestaurantSlugResponse {

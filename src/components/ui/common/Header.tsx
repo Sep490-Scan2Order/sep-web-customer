@@ -8,7 +8,7 @@ import { Menu, ShoppingCart } from "lucide-react";
 import { APP_NAME } from "@/constants";
 import { ROUTES } from "@/constants/routes";
 import logoDefault from "@/assets/images/logo/logo_removebg.png";
-import { CART_DATA_STORAGE_KEY, CART_ID_STORAGE_KEY } from "@/services/orderCustomerService";
+import { loadCartCache } from "@/services/orderCustomerService";
 import { AllRestaurantsOrderLookupDrawer } from "@/components/ui/common/AllRestaurantsOrderLookupDrawer";
 
 const HEADER_LINKS = [
@@ -41,24 +41,19 @@ export function Header() {
     }
 
     const syncCart = () => {
-      const id = window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantIdFromPath));
-      if (!id) {
-        setCartId(null);
-        setCartCount(0);
-        return;
-      }
-      setCartId(id);
-      const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(id));
-      if (!raw) {
-        setCartCount(0);
-        return;
-      }
       try {
-        const parsed = JSON.parse(raw) as { items?: Array<{ quantity: number }> };
+        const parsed = loadCartCache(restaurantIdFromPath);
+        if (!parsed) {
+          setCartId(null);
+          setCartCount(0);
+          return;
+        }
+        setCartId(parsed.cartId);
         const count =
           parsed.items?.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0) ?? 0;
         setCartCount(count);
       } catch {
+        setCartId(null);
         setCartCount(0);
       }
     };

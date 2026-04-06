@@ -18,6 +18,16 @@ export default function RestaurantInfoModal({
 }: RestaurantInfoModalProps) {
   if (!open) return null;
 
+  const formatTimeHHmm = (t?: string | null) => {
+    if (!t) return "--:--";
+    const trimmed = t.trim();
+    if (trimmed.length >= 5) return trimmed.slice(0, 5);
+    return trimmed;
+  };
+  const scheduleText = `Thứ 2 - Chủ nhật: ${formatTimeHHmm(restaurant.openTime)} - ${formatTimeHHmm(
+    restaurant.closeTime
+  )}`;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
@@ -39,12 +49,10 @@ export default function RestaurantInfoModal({
         </div>
 
         <dl className="space-y-2 text-xs sm:space-y-3 sm:text-sm">
-          {restaurant.address && (
-            <div>
-              <dt className="font-medium text-slate-500">Địa chỉ</dt>
-              <dd className="mt-0.5 text-slate-800">{restaurant.address}</dd>
-            </div>
-          )}
+          <div>
+            <dt className="font-medium text-slate-500">Lịch bán</dt>
+            <dd className="mt-0.5 text-slate-800">{scheduleText}</dd>
+          </div>
           {restaurant.phone && (
             <div>
               <dt className="font-medium text-slate-500">Điện thoại</dt>
@@ -61,6 +69,14 @@ export default function RestaurantInfoModal({
               {statusDot} {statusLabel}
             </dd>
           </div>
+          {restaurant.isOpened && !restaurant.isReceivingOrders && (
+            <div>
+              <dt className="font-medium text-slate-500">Ghi chú</dt>
+              <dd className="mt-0.5 text-amber-700">
+                Quán tạm ngưng nhận đơn do số lượng đông
+              </dd>
+            </div>
+          )}
         </dl>
 
         <p className="mt-3 text-xs text-slate-400 sm:mt-4">

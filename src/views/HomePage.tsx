@@ -34,7 +34,7 @@ const quickActions = [
     openLookup: true,
   },
   {
-    title: "Quét QR tại bàn",
+    title: "Quét QR tại quán",
     description: "Quét mã để vào menu đúng nhà hàng, đúng chi nhánh và đặt món ngay.",
     href: ROUTES.RESTAURANTS,
     icon: QrCode,
@@ -43,7 +43,7 @@ const quickActions = [
 ] as const;
 
 const usageSteps = [
-  "Chọn nhà hàng hoặc quét mã QR tại bàn.",
+  "Chọn nhà hàng hoặc quét mã QR tại quán.",
   "Thêm món yêu thích vào giỏ và xác nhận đơn.",
   "Theo dõi trạng thái chế biến cho tới khi nhận món.",
 ] as const;
