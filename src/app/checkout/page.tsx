@@ -10,6 +10,8 @@ import {
   ChevronRight,
   Clock,
   Loader2,
+  Minus,
+  Plus,
   QrCode,
   ReceiptText,
   ShoppingBag,
@@ -19,18 +21,22 @@ import {
   CalendarDays,
   Ticket,
   Utensils,
+  X,
 } from "lucide-react";
 import {
   checkoutBankTransfer,
   checkoutCash,
   getCustomerActiveOrders,
   getAvailablePromotions,
+  updateCartItem,
+  PENDING_BANK_TRANSFER_TTL_MS,
   CART_DATA_STORAGE_KEY,
   CART_ID_STORAGE_KEY,
   savePendingBankTransfer,
   clearPendingBankTransfer,
   clearCartCache,
   loadCartByCartId,
+  saveCartCache,
   type CartItem,
   type CartResponse,
   type CheckoutBankTransferResponse,
@@ -54,14 +60,21 @@ type OrderStep =
   | { kind: "error"; method: PayMethod; message: string };
 
 /* ─── Sub-components ─── */
-function OrderItemRow({ item }: { item: CartItem }) {
+interface OrderItemRowProps {
+  item: CartItem;
+  updating: boolean;
+  onIncrease: () => void;
+  onDecrease: () => void;
+}
+
+function OrderItemRow({ item, updating, onIncrease, onDecrease }: OrderItemRowProps) {
   return (
     <div className="flex items-center gap-3 py-3 w-full">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
         {item.imageUrl ? (
-          <img 
-            src={item.imageUrl} 
-            alt={item.dishName} 
+          <img
+            src={item.imageUrl}
+            alt={item.dishName}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -69,9 +82,7 @@ function OrderItemRow({ item }: { item: CartItem }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-slate-800">
-          {item.dishName} <span className="font-bold text-slate-500 ml-0.5">x{item.quantity}</span>
-        </p>
+        <p className="truncate text-sm font-semibold text-slate-800">{item.dishName}</p>
         {item.promotionName && (
           <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-800 ring-1 ring-orange-200">
             <Tag className="h-2.5 w-2.5 shrink-0" />
@@ -84,7 +95,35 @@ function OrderItemRow({ item }: { item: CartItem }) {
           </p>
         )}
       </div>
-      <p className="shrink-0 text-sm font-bold text-orange-600">{formatVND(item.subTotal)}</p>
+      {/* Qty controls */}
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          disabled={updating}
+          onClick={onDecrease}
+          aria-label={item.quantity === 1 ? `Xóa ${item.dishName}` : `Giảm ${item.dishName}`}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {item.quantity === 1 ? <X className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+        </button>
+        <span className="min-w-[1.5rem] text-center text-sm font-bold text-slate-800">
+          {updating ? (
+            <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin text-orange-400" />
+          ) : (
+            item.quantity
+          )}
+        </span>
+        <button
+          type="button"
+          disabled={updating}
+          onClick={onIncrease}
+          aria-label={`Tăng ${item.dishName}`}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-orange-300 hover:bg-orange-50 hover:text-orange-600 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
+      <p className="shrink-0 min-w-[4.5rem] text-right text-sm font-bold text-orange-600">{formatVND(item.subTotal)}</p>
     </div>
   );
 }
@@ -94,6 +133,7 @@ function SectionCard({ children, className = "" }: { children: React.ReactNode; 
     <div className={`rounded-2xl bg-white px-4 shadow-sm ${className}`}>{children}</div>
   );
 }
+
 
 /* ─── Main checkout content ─── */
 function CheckoutContent() {
@@ -113,6 +153,10 @@ function CheckoutContent() {
   const [cashConfirmed, setCashConfirmed] = useState(false);
   const [bankConfirmed, setBankConfirmed] = useState(false);
 
+  /** dishId đang được cập nhật số lượng (chỉ 1 tại một thời điểm) */
+  const [updatingDishId, setUpdatingDishId] = useState<number | null>(null);
+  const [updateCartError, setUpdateCartError] = useState<string | null>(null);
+
   const [promotions, setPromotions] = useState<PromotionResponse[]>([]);
   const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
   const [loadingPromotions, setLoadingPromotions] = useState(false);
@@ -128,7 +172,7 @@ function CheckoutContent() {
       const savedResult = window.localStorage.getItem(SESSION_RESULT_KEY);
       if (savedResult) {
         const parsed = JSON.parse(savedResult) as { step: OrderStep; savedAt: number };
-        const TTL_MS = 24 * 60 * 60 * 1000;
+        const TTL_MS = PENDING_BANK_TRANSFER_TTL_MS; // 15 phút — đồng bộ với TTL banner "Quay lại thanh toán"
         if (Date.now() - parsed.savedAt > TTL_MS) {
           window.localStorage.removeItem(SESSION_RESULT_KEY);
         } else if (parsed.step?.kind === "done_cash" || parsed.step?.kind === "done_bank") {
@@ -168,7 +212,8 @@ function CheckoutContent() {
       }
     };
     fetchPromotions();
-  }, [cart?.totalAmount, restaurantIdParam]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantIdParam]); // Chỉ fetch 1 lần khi load trang, không re-fetch mỗi lần qty thay đổi
 
   useEffect(() => {
     if (step.kind !== "done_cash" || cashConfirmed) return;
@@ -229,6 +274,34 @@ function CheckoutContent() {
   const backHref = restaurantSlug ? `/menu?restaurant=${encodeURIComponent(restaurantSlug)}` : "/";
   const isLoading = step.kind === "loading";
   const isDone = step.kind === "done_cash" || step.kind === "done_bank";
+
+  /**
+   * Gọi API update-item với newQuantity tuyệt đối.
+   * Sau khi thành công luôn cập nhật toàn bộ cart từ response (backend sync giá/KM/tồn kho).
+   */
+  async function handleUpdateQty(dishId: number, newQuantity: number) {
+    if (!cart || updatingDishId !== null) return;
+    setUpdatingDishId(dishId);
+    setUpdateCartError(null);
+    try {
+      const updated = await updateCartItem({ cartId, dishId, newQuantity });
+      setCart(updated);
+      // Sync lại localStorage để trang menu cũng nhận được cart mới nhất
+      if (restaurantIdParam) {
+        saveCartCache(Number(restaurantIdParam), updated);
+      }
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (e as Error)?.message ||
+        "Không thể cập nhật số lượng.";
+      setUpdateCartError(msg);
+      // Tự xóa lỗi sau 4s
+      setTimeout(() => setUpdateCartError(null), 4000);
+    } finally {
+      setUpdatingDishId(null);
+    }
+  }
 
   function clearOrderData() {
     if (restaurantIdParam) {
@@ -620,9 +693,21 @@ function CheckoutContent() {
           </div>
           <div className="divide-y divide-slate-100">
             {cart.items.map((item) => (
-              <OrderItemRow key={item.dishId} item={item} />
+              <OrderItemRow
+                key={item.dishId}
+                item={item}
+                updating={updatingDishId === item.dishId}
+                onIncrease={() => handleUpdateQty(item.dishId, item.quantity + 1)}
+                onDecrease={() => handleUpdateQty(item.dishId, item.quantity - 1)}
+              />
             ))}
           </div>
+          {updateCartError && (
+            <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              {updateCartError}
+            </div>
+          )}
           <div className="h-px bg-slate-100" />
           <div className="flex items-center justify-between py-3">
             <p className="text-sm font-semibold text-slate-600">Tổng cộng</p>
@@ -630,85 +715,88 @@ function CheckoutContent() {
           </div>
         </SectionCard>
 
-        {/* Khuyến mãi */}
-        {(promotions.length > 0 || loadingPromotions) && (
-          <SectionCard className="py-3">
-            <div className="flex items-center gap-2 mb-3">
-              <Ticket className="h-4 w-4 text-orange-500" />
-              <p className="text-sm font-extrabold text-slate-800">Khuyến mãi & Ưu đãi</p>
-              {loadingPromotions && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
-            </div>
-            <div className="flex flex-col gap-2">
-              {promotions.map(promo => {
-                const isSelected = selectedPromotionId === promo.id;
-                let Icon = Tag;
-                if (promo.type === 1) Icon = Clock;
-                if (promo.type === 2) Icon = Flame;
-                if (promo.type === 3) Icon = CalendarDays;
+        {/* Khuyến mãi - luôn hiển thị */}
+        <SectionCard className="py-3">
+          <div className="flex items-center gap-2 mb-3">
+            <Ticket className="h-4 w-4 text-orange-500" />
+            <p className="text-sm font-extrabold text-slate-800">Khuyến mãi &amp; Ưu đãi</p>
+            {loadingPromotions && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+          </div>
+          <div className="flex flex-col gap-2">
+            {!loadingPromotions && promotions.length === 0 && (
+              <p className="rounded-xl border border-dashed border-slate-200 px-3 py-3 text-center text-xs text-slate-400">
+                Hiện không có khuyến mãi nào áp dụng cho đơn hàng này.
+              </p>
+            )}
+            {promotions.map(promo => {
+              const isSelected = selectedPromotionId === promo.id;
+              let Icon = Tag;
+              if (promo.type === 1) Icon = Clock;
+              if (promo.type === 2) Icon = Flame;
+              if (promo.type === 3) Icon = CalendarDays;
 
-                let tagLabel = "";
-                if (promo.discountType === 0) tagLabel = `-${promo.discountValue}%`;
-                else tagLabel = `-${formatVND(promo.discountValue)}`;
+              let tagLabel = "";
+              if (promo.discountType === 0) tagLabel = `-${promo.discountValue}%`;
+              else tagLabel = `-${formatVND(promo.discountValue)}`;
 
-                return (
-                  <label
-                    key={promo.id}
-                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition ${
-                      isSelected ? "border-orange-500 bg-orange-50/70" : "border-slate-100 bg-white hover:border-orange-200"
-                    }`}
-                  >
-                    <div className="flex h-5 items-center">
-                      <input
-                        type="radio"
-                        name="promotion"
-                        checked={isSelected}
-                        onChange={() => setSelectedPromotionId(promo.id)}
-                        className="h-4 w-4 text-orange-600 focus:ring-orange-500 cursor-pointer"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center flex-wrap gap-1.5">
-                        <Icon className={`h-3.5 w-3.5 ${promo.type === 2 ? 'text-rose-500' : promo.type === 1 ? 'text-blue-500' : promo.type === 3 ? 'text-amber-500' : 'text-slate-500'}`} />
-                        <p className="text-sm font-bold text-slate-800 break-words">{promo.name}</p>
-                        <span className="shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
-                          {tagLabel}
-                        </span>
-                        {promo.isRecommended && (
-                          <span className="shrink-0 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-800 border border-orange-200">
-                            Tốt nhất
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                        Đơn từ {formatVND(promo.minOrderValue)}
-                        {promo.discountType === 0 && promo.maxDiscountValue ? ` • Tối đa ${formatVND(promo.maxDiscountValue)}` : ""}
-                      </p>
-                      {promo.endDate && (
-                        <p className="mt-0.5 text-[11px] text-slate-400">
-                          HSD: {new Date(promo.endDate).toLocaleDateString("vi-VN")}
-                        </p>
-                      )}
-                      {promo.type === 1 && promo.dailyEndTime && (
-                        <p className="mt-0.5 text-[11px] text-slate-400">
-                          Hiệu lực {promo.dailyStartTime?.slice(0, 5)} - {promo.dailyEndTime?.slice(0, 5)}
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                );
-              })}
-              {promotions.length > 0 && selectedPromotionId !== null && (
-                <button
-                  type="button"
-                  onClick={() => setSelectedPromotionId(null)}
-                  className="mt-1 text-xs font-semibold text-slate-400 hover:text-slate-600 self-start p-1"
+              return (
+                <label
+                  key={promo.id}
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition ${
+                    isSelected ? "border-orange-500 bg-orange-50/70" : "border-slate-100 bg-white hover:border-orange-200"
+                  }`}
                 >
-                  Bỏ chọn khuyến mãi
-                </button>
-              )}
-            </div>
-          </SectionCard>
-        )}
+                  <div className="flex h-5 items-center">
+                    <input
+                      type="radio"
+                      name="promotion"
+                      checked={isSelected}
+                      onChange={() => setSelectedPromotionId(promo.id)}
+                      className="h-4 w-4 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center flex-wrap gap-1.5">
+                      <Icon className={`h-3.5 w-3.5 ${promo.type === 2 ? 'text-rose-500' : promo.type === 1 ? 'text-blue-500' : promo.type === 3 ? 'text-amber-500' : 'text-slate-500'}`} />
+                      <p className="text-sm font-bold text-slate-800 break-words">{promo.name}</p>
+                      <span className="shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
+                        {tagLabel}
+                      </span>
+                      {promo.isRecommended && (
+                        <span className="shrink-0 rounded bg-orange-100 px-1.5 py-0.5 text-[10px] font-bold text-orange-800 border border-orange-200">
+                          Tốt nhất
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                      Đơn từ {formatVND(promo.minOrderValue)}
+                      {promo.discountType === 0 && promo.maxDiscountValue ? ` • Tối đa ${formatVND(promo.maxDiscountValue)}` : ""}
+                    </p>
+                    {promo.endDate && (
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        HSD: {new Date(promo.endDate).toLocaleDateString("vi-VN")}
+                      </p>
+                    )}
+                    {promo.type === 1 && promo.dailyEndTime && (
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        Hiệu lực {promo.dailyStartTime?.slice(0, 5)} - {promo.dailyEndTime?.slice(0, 5)}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+            {promotions.length > 0 && selectedPromotionId !== null && (
+              <button
+                type="button"
+                onClick={() => setSelectedPromotionId(null)}
+                className="mt-1 text-xs font-semibold text-slate-400 hover:text-slate-600 self-start p-1"
+              >
+                Bỏ chọn khuyến mãi
+              </button>
+            )}
+          </div>
+        </SectionCard>
 
         {/* Thông tin khách */}
         <SectionCard className="py-3">

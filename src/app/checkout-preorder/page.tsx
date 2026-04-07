@@ -9,6 +9,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Loader2,
+  Minus,
+  Plus,
   QrCode,
   ShoppingCart,
   Ticket,
@@ -17,6 +19,7 @@ import {
   Flame,
   CalendarDays,
   Utensils,
+  X,
 } from "lucide-react";
 import { MainLayout } from "@/components/ui/common";
 import { ROUTES } from "@/constants/routes";
@@ -27,10 +30,13 @@ import {
   checkoutBankTransfer,
   getCustomerActiveOrders,
   getAvailablePromotions,
+  updateCartItem,
+  PENDING_BANK_TRANSFER_TTL_MS,
   savePendingBankTransfer,
   clearPendingBankTransfer,
   loadPendingBankTransfer,
   loadCartByCartId,
+  saveCartCache,
   type CartItem,
   type CartResponse,
   type CheckoutBankTransferResponse,
@@ -103,9 +109,15 @@ function SectionCard({ children, className = "" }: { children: React.ReactNode; 
 function OrderItemRowPreorder({
   item,
   dishImageUrlById,
+  updating,
+  onIncrease,
+  onDecrease,
 }: {
   item: CartItem;
   dishImageUrlById: Record<number, string>;
+  updating: boolean;
+  onIncrease: () => void;
+  onDecrease: () => void;
 }) {
   const src = item.imageUrl?.trim() || dishImageUrlById[item.dishId]?.trim();
   return (
@@ -124,10 +136,7 @@ function OrderItemRowPreorder({
         ) : null}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-slate-800">
-          {item.dishName}{" "}
-          <span className="ml-0.5 font-bold text-slate-500">x{item.quantity}</span>
-        </p>
+        <p className="truncate text-sm font-semibold text-slate-800">{item.dishName}</p>
         {item.promotionName && (
           <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
             <Tag className="h-2.5 w-2.5 shrink-0" />
@@ -140,7 +149,35 @@ function OrderItemRowPreorder({
           </p>
         )}
       </div>
-      <span className="shrink-0 text-sm font-bold text-slate-900">{formatVND(item.subTotal)}</span>
+      {/* Qty controls */}
+      <div className="flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          disabled={updating}
+          onClick={onDecrease}
+          aria-label={item.quantity === 1 ? `Xóa ${item.dishName}` : `Giảm ${item.dishName}`}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {item.quantity === 1 ? <X className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+        </button>
+        <span className="min-w-[1.5rem] text-center text-sm font-bold text-slate-800">
+          {updating ? (
+            <Loader2 className="mx-auto h-3.5 w-3.5 animate-spin text-emerald-500" />
+          ) : (
+            item.quantity
+          )}
+        </span>
+        <button
+          type="button"
+          disabled={updating}
+          onClick={onIncrease}
+          aria-label={`Tăng ${item.dishName}`}
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
+      </div>
+      <span className="shrink-0 min-w-[4rem] text-right text-sm font-bold text-slate-900">{formatVND(item.subTotal)}</span>
     </div>
   );
 }
@@ -172,6 +209,9 @@ function CheckoutPreorderContent() {
   const [promotions, setPromotions] = useState<PromotionResponse[]>([]);
   const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
   const [loadingPromotions, setLoadingPromotions] = useState(false);
+  /** dishId đang được cập nhật số lượng (chỉ 1 tại một thời điểm) */
+  const [updatingDishId, setUpdatingDishId] = useState<number | null>(null);
+  const [updateCartError, setUpdateCartError] = useState<string | null>(null);
   /** Ảnh món từ API menu (cùng nguồn trang nhà hàng) — dùng khi cart item không có imageUrl */
   const [dishImageUrlById, setDishImageUrlById] = useState<Record<number, string>>({});
 
@@ -211,7 +251,7 @@ function CheckoutPreorderContent() {
           phone: string;
           savedAt: number;
         };
-        const TTL_MS = 24 * 60 * 60 * 1000;
+        const TTL_MS = PENDING_BANK_TRANSFER_TTL_MS; // 15 phút — đồng bộ với TTL banner "Quay lại thanh toán"
         if (Date.now() - parsed.savedAt > TTL_MS) {
           window.localStorage.removeItem(SESSION_RESULT_KEY);
         } else if (parsed.orderResult) {
@@ -275,7 +315,8 @@ function CheckoutPreorderContent() {
       }
     };
     fetchPromotions();
-  }, [cart?.totalAmount, restaurantIdParam]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurantIdParam]); // Chỉ fetch 1 lần khi load trang, không re-fetch mỗi lần qty thay đổi
 
   useEffect(() => {
     if (!orderResult || bankConfirmed) return;
@@ -316,6 +357,28 @@ function CheckoutPreorderContent() {
       window.clearInterval(timer);
     };
   }, [orderResult, bankConfirmed, restaurantIdParam, lookupPhone, cart?.cartId]);
+
+  async function handleUpdateQty(dishId: number, newQuantity: number) {
+    if (!cart || updatingDishId !== null) return;
+    setUpdatingDishId(dishId);
+    setUpdateCartError(null);
+    try {
+      const updated = await updateCartItem({ cartId: cart.cartId, dishId, newQuantity });
+      setCart(updated);
+      if (restaurantIdParam) {
+        saveCartCache(Number(restaurantIdParam), updated);
+      }
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (e as Error)?.message ||
+        "Không thể cập nhật số lượng.";
+      setUpdateCartError(msg);
+      setTimeout(() => setUpdateCartError(null), 4000);
+    } finally {
+      setUpdatingDishId(null);
+    }
+  }
 
   async function handleCheckoutBankTransfer() {
     if (!cart?.cartId) return;
@@ -458,9 +521,18 @@ function CheckoutPreorderContent() {
                           key={item.dishId}
                           item={item}
                           dishImageUrlById={dishImageUrlById}
+                          updating={updatingDishId === item.dishId}
+                          onIncrease={() => handleUpdateQty(item.dishId, item.quantity + 1)}
+                          onDecrease={() => handleUpdateQty(item.dishId, item.quantity - 1)}
                         />
                       ))}
                     </div>
+                    {updateCartError && (
+                      <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 mb-2 text-xs font-semibold text-rose-600">
+                        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                        {updateCartError}
+                      </div>
+                    )}
                     <div className="h-px bg-slate-100" />
                     <div className="flex items-center justify-between py-3">
                       <p className="text-sm font-semibold text-slate-600">Tổng cộng</p>
@@ -469,14 +541,19 @@ function CheckoutPreorderContent() {
                   </SectionCard>
                 )}
 
-                {cart && (promotions.length > 0 || loadingPromotions) && (
+                {cart && (
                   <SectionCard className="mt-3 py-3">
                     <div className="mb-3 flex items-center gap-2">
                       <Ticket className="h-4 w-4 text-emerald-500" />
-                      <p className="text-sm font-extrabold text-slate-800">Khuyến mãi & Ưu đãi</p>
+                      <p className="text-sm font-extrabold text-slate-800">Khuyến mãi &amp; Ưu đãi</p>
                       {loadingPromotions && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
                     </div>
                     <div className="flex flex-col gap-2">
+                      {!loadingPromotions && promotions.length === 0 && (
+                        <p className="rounded-xl border border-dashed border-slate-200 px-3 py-3 text-center text-xs text-slate-400">
+                          Hiện không có khuyến mãi nào áp dụng cho đơn hàng này.
+                        </p>
+                      )}
                       {promotions.map((promo) => {
                         const isSelected = selectedPromotionId === promo.id;
                         let Icon = Tag;
@@ -542,7 +619,7 @@ function CheckoutPreorderContent() {
                               )}
                               {promo.type === 1 && promo.dailyEndTime && (
                                 <p className="mt-0.5 text-[11px] text-slate-400">
-                                  Hiệu lực {promo.dailyStartTime?.slice(0, 5)} -{" "}
+                                  Hiệu lực {promo.dailyStartTime?.slice(0, 5)} –{" "}
                                   {promo.dailyEndTime?.slice(0, 5)}
                                 </p>
                               )}

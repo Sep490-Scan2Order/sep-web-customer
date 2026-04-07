@@ -184,6 +184,32 @@ export async function addToCart(req: AddToCartRequest): Promise<CartResponse> {
   return data.data;
 }
 
+export type UpdateCartItemRequest = {
+  cartId: string;
+  dishId: number;
+  newQuantity: number;
+};
+
+/**
+ * Cập nhật số lượng món trong giỏ hàng.
+ * - newQuantity = 0  → xóa món khỏi giỏ (không cần gọi API xóa riêng)
+ * - newQuantity > 0  → set số lượng tuyệt đối (absolute value)
+ * - Trả về toàn bộ CartResponse đã được sync lại từ backend
+ */
+export async function updateCartItem(req: UpdateCartItemRequest): Promise<CartResponse> {
+  const { data } = await api.put<ApiResponse<CartResponse>>(
+    API.ORDER.UPDATE_CART_ITEM,
+    req,
+    { _skipAuth: true } as unknown as Record<string, unknown>
+  );
+  if (!data.isSuccess) {
+    throw new Error(data.message || "Không thể cập nhật giỏ hàng.");
+  }
+  return data.data;
+}
+
+
+
 export type CheckoutRequest = {
   cartId: string;
   phone: string;

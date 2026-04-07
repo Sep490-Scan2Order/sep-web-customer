@@ -20,6 +20,7 @@ export const API = {
         CUSTOMER_GET_ORDERS_ACTIVE: "/Order/customer/orders/active",
         CUSTOMER_GET_ORDERS_ACTIVE_ALL: "/Order/customer/orders/active/all-restaurants",
         ADD_TO_CART: "/order/add-to-cart",
+        UPDATE_CART_ITEM: "/order/cart/update-item",
         CHECKOUT_CASH: "/order/checkout/cash",
         CHECKOUT_BANK_TRANSFER: "/order/checkout/bank-transfer",
         AVAILABLE_PROMOTIONS: "/order/available-promotions",
