@@ -59,7 +59,7 @@ function refundTypeLabel(refundType: number | null | undefined): string {
 }
 
 function isRefundOrder(o: CustomerOrderSummary): boolean {
-  return o.isRefundLog === true || o.typeOrder === 1;
+  return o.isRefundLog === true || Boolean(o.refundOrderId?.trim()) || o.typeOrder === 1;
 }
 
 function resolveParentOrderFromList(
@@ -71,6 +71,13 @@ function resolveParentOrderFromList(
   const match = orders.find((x) => x.orderId.toLowerCase() === id);
   if (!match || isRefundOrder(match)) return null;
   return match;
+}
+
+function resolveParentOrderCodeFromList(
+  orders: CustomerOrderSummary[],
+  refundOrderId: string | null | undefined
+): number | null {
+  return resolveParentOrderFromList(orders, refundOrderId)?.orderCode ?? null;
 }
 
 function statusStyle(status: number): {
@@ -601,9 +608,15 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                           <span
                                             className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800 ring-1 ring-violet-200"
                                             title={
-                                              o.refundOrderId
-                                                ? `Đơn gốc: ${o.refundOrderId} • ${refundTypeLabel(o.refundType)}`
-                                                : refundTypeLabel(o.refundType)
+                                              (() => {
+                                                const code = resolveParentOrderCodeFromList(
+                                                  ordersForRestaurant,
+                                                  o.refundOrderId
+                                                );
+                                                return code != null
+                                                  ? `Hoàn cho đơn #${code} • ${refundTypeLabel(o.refundType)}`
+                                                  : refundTypeLabel(o.refundType);
+                                              })()
                                             }
                                           >
                                             Hoàn tiền

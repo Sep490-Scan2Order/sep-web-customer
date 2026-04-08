@@ -41,7 +41,9 @@ function refundTypeLabel(refundType: number | null | undefined): string {
 }
 
 function isRefundOrder(o: CustomerOrderSummary): boolean {
-  return o.isRefundLog === true || o.typeOrder === 1;
+  // Backend đảm bảo refund log có refundOrderId trỏ về đơn gốc; numberPhone có thể rỗng.
+  // Ưu tiên nhận diện bằng isRefundLog, fallback bằng refundOrderId để tránh lệ thuộc enum typeOrder.
+  return o.isRefundLog === true || Boolean(o.refundOrderId?.trim()) || o.typeOrder === 1;
 }
 
 /** Đơn gốc mà bản ghi hoàn trỏ tới (orderId === refundOrderId), không phải bản refund log. */
@@ -565,9 +567,12 @@ export default function OrderLookupView() {
                                 <span
                                   className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800 ring-1 ring-violet-200"
                                   title={
-                                    o.refundOrderId
-                                      ? `Đơn gốc: ${o.refundOrderId} • ${refundTypeLabel(o.refundType)}`
-                                      : refundTypeLabel(o.refundType)
+                                    (() => {
+                                      const code = resolveParentOrderCodeFromList(orders, o.refundOrderId);
+                                      return code != null
+                                        ? `Hoàn cho đơn #${code} • ${refundTypeLabel(o.refundType)}`
+                                        : refundTypeLabel(o.refundType);
+                                    })()
                                   }
                                 >
                                   Hoàn tiền
