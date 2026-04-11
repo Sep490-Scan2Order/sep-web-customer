@@ -52,9 +52,9 @@ function statusTabLabelShort(status: number): string {
 }
 
 function refundTypeLabel(refundType: number | null | undefined): string {
-  if (refundType === 0) return "Theo chính sách / điều chỉnh đơn";
-  if (refundType === 1) return "Hoàn do lỗi phía nhà hàng";
-  if (refundType === 2) return "Hoàn do lỗi hệ thống";
+  if (refundType === 0) return "Lỗi hệ thống";
+  if (refundType === 1) return "Lỗi khách quan phía nhà hàng";
+  if (refundType === 2) return "Lỗi nhân viên";
   return "Hoàn tiền";
 }
 
@@ -78,6 +78,42 @@ function resolveParentOrderCodeFromList(
   refundOrderId: string | null | undefined
 ): number | null {
   return resolveParentOrderFromList(orders, refundOrderId)?.orderCode ?? null;
+}
+
+function findRefundLogsForParent(
+  orders: CustomerOrderSummary[],
+  parentOrderId: string
+): CustomerOrderSummary[] {
+  const pid = parentOrderId.trim().toLowerCase();
+  if (!pid) return [];
+  return orders.filter(
+    (o) => isRefundOrder(o) && (o.refundOrderId?.trim().toLowerCase() ?? "") === pid
+  );
+}
+
+function pickLatestRefundLog(logs: CustomerOrderSummary[]): CustomerOrderSummary | null {
+  if (!logs.length) return null;
+  return [...logs].sort((a, b) => {
+    const ta = Date.parse(a.createdAt);
+    const tb = Date.parse(b.createdAt);
+    if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return tb - ta;
+    return String(b.createdAt).localeCompare(String(a.createdAt));
+  })[0]!;
+}
+
+function resolveDisplayOrderDetails(
+  orders: CustomerOrderSummary[],
+  o: CustomerOrderSummary
+): { details: NonNullable<CustomerOrderSummary["orderDetails"]>; source: "order" | "refund_log" } {
+  const direct = Array.isArray(o.orderDetails) ? o.orderDetails : [];
+  if (direct.length > 0) return { details: direct, source: "order" };
+  if (isRefundOrder(o)) return { details: [], source: "order" };
+
+  const logs = findRefundLogsForParent(orders, o.orderId);
+  const latest = pickLatestRefundLog(logs);
+  const fromLog = Array.isArray(latest?.orderDetails) ? latest!.orderDetails! : [];
+  if (fromLog.length > 0) return { details: fromLog, source: "refund_log" };
+  return { details: [], source: "order" };
 }
 
 function statusStyle(status: number): {
@@ -153,6 +189,13 @@ function formatDateTimeVi(iso: string): string {
   } catch {
     return iso;
   }
+}
+
+function isRenderableQrUrl(url?: string | null): boolean {
+  const u = url?.trim();
+  if (!u) return false;
+  if (u === "REFUND_LOG") return false;
+  return u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:");
 }
 
 function renderLinePrice(line: {
@@ -499,7 +542,9 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                             const styles = statusStyle(o.status);
                             const isRefund = isRefundOrder(o);
                             const onRefundTab = activeTabKey === "refund";
-                            const showRefundBadge = isRefund && !onRefundTab;
+                            const hasLinkedRefundLog =
+                              !isRefund && findRefundLogsForParent(ordersForRestaurant, o.orderId).length > 0;
+                            const showRefundBadge = (isRefund && !onRefundTab) || (!isRefund && hasLinkedRefundLog);
                             const createdText = (() => {
                               try {
                                 return new Date(o.createdAt).toLocaleString("vi-VN");
@@ -602,6 +647,11 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                     }
                                   >
                                     <div className="min-w-0">
+                                      {(() => {
+                                        const { details: displayDetails, source: detailsSource } =
+                                          resolveDisplayOrderDetails(ordersForRestaurant, o);
+                                        return (
+                                          <>
                                       <div className="flex flex-wrap items-center gap-2">
                                         <p className="text-base font-extrabold text-slate-900">Đơn #{o.orderCode}</p>
                                         {showRefundBadge && (
@@ -609,13 +659,16 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                             className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800 ring-1 ring-violet-200"
                                             title={
                                               (() => {
-                                                const code = resolveParentOrderCodeFromList(
-                                                  ordersForRestaurant,
-                                                  o.refundOrderId
-                                                );
-                                                return code != null
-                                                  ? `Hoàn cho đơn #${code} • ${refundTypeLabel(o.refundType)}`
-                                                  : refundTypeLabel(o.refundType);
+                                                if (isRefund) {
+                                                  const code = resolveParentOrderCodeFromList(
+                                                    ordersForRestaurant,
+                                                    o.refundOrderId
+                                                  );
+                                                  return code != null
+                                                    ? `Hoàn cho đơn #${code} • ${refundTypeLabel(o.refundType)}`
+                                                    : refundTypeLabel(o.refundType);
+                                                }
+                                                return "Có bản ghi hoàn tiền liên quan đơn này";
                                               })()
                                             }
                                           >
@@ -626,13 +679,13 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
 
                                       <p className="mt-1 text-sm text-slate-600">Tạo lúc: {createdText}</p>
 
-                                      {Array.isArray(o.orderDetails) && o.orderDetails.length > 0 && (
+                                      {displayDetails.length > 0 && (
                                         <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                                           <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
                                             Món đã đặt
                                           </p>
                                           <ul className="mt-2 space-y-2">
-                                            {o.orderDetails.map((d) => {
+                                            {displayDetails.map((d) => {
                                               const price = renderLinePrice(d);
                                               return (
                                                 <li
@@ -683,6 +736,9 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                           </ul>
                                         </div>
                                       )}
+                                          </>
+                                        );
+                                      })()}
 
                                       <div
                                         className={
@@ -697,7 +753,7 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                         </p>
                                         {!hideQrDeliveredOrCancelled && (
                                           <p className="sm:text-right">
-                                            {o.qrCodeUrl ? (
+                                            {isRenderableQrUrl(o.qrCodeUrl) ? (
                                               <button
                                                 type="button"
                                                 onClick={() =>
@@ -717,7 +773,7 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
 
                                     {!hideQrDeliveredOrCancelled && (
                                       <div className="sm:text-right">
-                                        {o.qrCodeUrl ? (
+                                        {isRenderableQrUrl(o.qrCodeUrl) ? (
                                           <button
                                             type="button"
                                             onClick={() =>
