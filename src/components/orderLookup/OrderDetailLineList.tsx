@@ -5,6 +5,7 @@ import {
   formatOriginalLineQuantityCaption,
   lineAmountsForDisplay,
   originalLineHasRefund,
+  detectRefundLineOrderLevelRatio,
   type CustomerOrderDetailLine,
 } from "@/utils/customerOrderLookupDisplay";
 
@@ -13,6 +14,8 @@ type OrderDetailLineListProps = {
   lines: CustomerOrderDetailLine[];
   ctx: "original" | "refund_log";
   formatMoneyVnd: (amount: number) => string;
+  /** Tỉ lệ thanh toán thực tế do KM theo đơn (0-1). Chỉ dùng khi ctx=refund_log và đơn có KM level đơn. */
+  paymentRatio?: number | null;
 };
 
 function compactLineQuantity(d: CustomerOrderDetailLine): number {
@@ -21,7 +24,7 @@ function compactLineQuantity(d: CustomerOrderDetailLine): number {
   return 0;
 }
 
-export function OrderDetailLineList({ order, lines, ctx, formatMoneyVnd }: OrderDetailLineListProps) {
+export function OrderDetailLineList({ order, lines, ctx, formatMoneyVnd, paymentRatio }: OrderDetailLineListProps) {
   return (
     <>
       {lines.map((d, idx) => {
@@ -47,6 +50,11 @@ export function OrderDetailLineList({ order, lines, ctx, formatMoneyVnd }: Order
             refundLogCaption = `Hoàn ${d.quantity} phần`;
           }
         }
+
+        // Phát hiện KM level đơn trong refund_log — chỉ dùng cho logic nội bộ, không hiển thị trên UI nữa
+        const lineRatio = ctx === "refund_log" ? detectRefundLineOrderLevelRatio(d) : null;
+        const showRatioBreakdown = false; // Đã ẩn theo yêu cầu — chỉ hiện số tiền hoàn
+        const baseLineTotal: number | null = null;
         const lineFullyRefunded =
           ctx === "original" &&
           typeof d.quantity === "number" &&
@@ -98,7 +106,14 @@ export function OrderDetailLineList({ order, lines, ctx, formatMoneyVnd }: Order
               </div>
             </div>
             <div className="shrink-0 text-right">
-              {amounts.struck != null ? (
+              {ctx === "refund_log" && showRatioBreakdown && baseLineTotal !== null ? (
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-xs font-semibold text-slate-400 line-through">
+                    {formatMoneyVnd(baseLineTotal)}
+                  </span>
+                  <span className="text-sm font-extrabold text-rose-600">{formatMoneyVnd(amounts.main)}</span>
+                </div>
+              ) : amounts.struck != null ? (
                 <div className="space-x-2">
                   <span className="text-xs font-semibold text-slate-400 line-through">
                     {formatMoneyVnd(amounts.struck)}

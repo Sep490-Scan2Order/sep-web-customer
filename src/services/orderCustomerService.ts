@@ -401,6 +401,8 @@ export type CustomerOrderSummary = {
    * Phiếu refund: bằng finalAmount phiếu (không cộng thêm).
    */
   originalFinalAmount?: number | null;
+  /** Số tiền giảm do KM theo đơn (order-level promotion discount). 0 hoặc null nếu không có KM. */
+  promotionDiscount?: number | null;
   qrCodeUrl: string;
   typeOrder?: number;
   refundType?: number | null;

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BookOpen, X } from "lucide-react";
 import { OrderDetailLineList } from "@/components/orderLookup/OrderDetailLineList";
 import { MainLayout, QrCodeModal } from "@/components/ui/common";
 import { getCustomerActiveOrders, type CustomerOrderSummary } from "@/services/orderCustomerService";
@@ -14,7 +14,120 @@ import {
   orderDetailsSectionTitle,
   resolveParentOrderFromList,
   shouldShowOriginalFinalStrike,
+  inferOrderLevelDiscount,
 } from "@/utils/customerOrderLookupDisplay";
+
+function RefundPolicyModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div
+        className="relative z-10 mx-auto w-full max-w-lg overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl"
+        style={{ maxHeight: "92dvh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="sticky top-0 flex items-center gap-3 border-b border-slate-100 bg-white px-5 py-4 rounded-t-3xl">
+          <BookOpen className="h-5 w-5 shrink-0 text-violet-600" />
+          <h2 className="flex-1 text-base font-extrabold text-slate-900">Quy tắc hoàn tiền</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 text-slate-500 hover:bg-slate-50"
+            aria-label="Đóng"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-5 pb-8 pt-4 space-y-5 text-sm text-slate-700 leading-relaxed">
+          {/* Giới thiệu */}
+          <p>
+            Khi một phần hoặc toàn bộ đơn hàng được hoàn, số tiền hoàn được tính dựa trên{" "}
+            <strong>giá bạn đã thanh toán thực tế</strong> cho món đó — không phải giá niêm yết ban đầu.
+            Điều này đảm bảo bạn luôn nhận lại đúng số tiền đã trả.
+          </p>
+
+          {/* Công thức */}
+          <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3 space-y-2">
+            <p className="font-extrabold text-violet-800 text-xs uppercase tracking-wide">Công thức tính tiền hoàn</p>
+            <div className="rounded-xl bg-white border border-violet-100 px-3 py-2">
+              <code className="text-violet-900 text-xs">
+                Tiền hoàn = (Giá thực tế đã trả / Số lượng đặt) × Số lượng hoàn
+              </code>
+            </div>
+          </div>
+
+          {/* 3 trường hợp */}
+          <div className="space-y-3">
+
+            {/* Case 1 */}
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-2 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-extrabold text-slate-700">1</span>
+                <p className="font-bold text-slate-900">Đơn không có khuyến mãi</p>
+              </div>
+              <p className="pl-8 text-slate-600">Hoàn đúng giá niêm yết của từng món, không thêm không bớt.</p>
+              <div className="ml-8 rounded-xl bg-slate-50 px-3 py-2.5 text-xs border border-slate-100 space-y-0.5">
+                <p className="font-semibold text-slate-700">Ví dụ: Đặt 2 phần Bún bò Huế × 85.000đ = 170.000đ</p>
+                <p className="text-emerald-700 font-bold">→ Hoàn 1 phần = 85.000đ</p>
+              </div>
+            </div>
+
+            {/* Case 2 */}
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-2 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-100 text-xs font-extrabold text-orange-700">2</span>
+                <p className="font-bold text-slate-900">Đơn có khuyến mãi theo món</p>
+              </div>
+              <p className="pl-8 text-slate-600">
+                Khi món được giảm giá trực tiếp (VD: giảm 20% trên món), tiền hoàn tính theo{" "}
+                <strong>giá sau khi giảm</strong> — là giá bạn thực sự đã trả.
+              </p>
+              <div className="ml-8 rounded-xl bg-slate-50 px-3 py-2.5 text-xs border border-slate-100 space-y-0.5">
+                <p className="font-semibold text-slate-700">Phở bò niêm yết 100.000đ, giảm 20% → bạn trả 80.000đ. Đặt 2 phần.</p>
+                <p className="text-emerald-700 font-bold">→ Hoàn 1 phần = 80.000đ (giá thực tế đã trả)</p>
+              </div>
+            </div>
+
+            {/* Case 3 */}
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 space-y-2 shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-xs font-extrabold text-emerald-700">3</span>
+                <p className="font-bold text-slate-900">Đơn có mã giảm tổng đơn hàng</p>
+              </div>
+              <p className="pl-8 text-slate-600">
+                Khi áp mã giảm toàn đơn (VD: giảm 15% tổng đơn), mỗi món được tính theo{" "}
+                <strong>tỉ lệ thanh toán thực tế</strong>. Tiền hoàn cũng theo tỉ lệ đó.
+              </p>
+              <div className="ml-8 rounded-xl bg-slate-50 px-3 py-2.5 text-xs border border-slate-100 space-y-0.5">
+                <p className="font-semibold text-slate-700">Đơn 200.000đ, dùng mã giảm 15% → trả 170.000đ (tỉ lệ 85%)</p>
+                <p className="text-slate-600">Gỏi cuốn tôm: 50.000đ × 2 phần × 85% = 85.000đ thực trả</p>
+                <p className="text-emerald-700 font-bold">→ Hoàn 1 phần = 85.000 ÷ 2 = 42.500đ</p>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Phương thức hoàn */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="font-bold text-slate-800 mb-1">Phương thức hoàn tiền</p>
+            <p className="text-slate-600">
+              Tiền sẽ được hoàn bằng <strong>tiền mặt</strong> hoặc{" "}
+              <strong>chuyển khoản ngân hàng</strong> tùy theo cách bạn đã thanh toán khi đặt món.
+              Vui lòng liên hệ nhân viên cửa hàng nếu cần hỗ trợ thêm.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 type CustomerUpdateStatusPayload = {
   orderId: string;
@@ -143,6 +256,7 @@ export default function OrderLookupView() {
   /** Toàn bộ đơn từ GET .../customer/orders/active (một API; lọc theo tab). */
   const [orders, setOrders] = useState<CustomerOrderSummary[]>([]);
   const [selectedQr, setSelectedQr] = useState<{ qrCodeUrl: string; orderCode: number } | null>(null);
+  const [refundPolicyOpen, setRefundPolicyOpen] = useState(false);
 
   const connectionRef = useRef<HubConnection | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
@@ -509,6 +623,15 @@ export default function OrderLookupView() {
                                   </ul>
                                 </div>
                               )}
+                              {/* Nút Quy tắc hoàn tiền */}
+                              <button
+                                type="button"
+                                onClick={() => setRefundPolicyOpen(true)}
+                                className="inline-flex items-center gap-1.5 rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-100"
+                              >
+                                <BookOpen className="h-3.5 w-3.5" />
+                                Quy tắc hoàn tiền
+                              </button>
                               <p className="text-sm leading-relaxed text-slate-600">
                                 Tiền sẽ được hoàn <strong>bằng tiền mặt</strong> hoặc <strong>chuyển khoản</strong> tùy
                                 cách bạn đã thanh toán lúc đặt món.
@@ -562,6 +685,21 @@ export default function OrderLookupView() {
                                   : "mt-3 grid grid-cols-1 gap-1 text-sm text-slate-800 sm:grid-cols-2"
                               }
                             >
+                              {/* KM theo đơn */}
+                              {(() => {
+                                const disc = inferOrderLevelDiscount(o, displayDetails);
+                                if (disc <= 0) return null;
+                                return (
+                                  <p className="col-span-full mb-0.5 flex items-center justify-between text-sm">
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-[11px] font-bold text-orange-700">
+                                      🎫 Khuyến mãi đơn
+                                    </span>
+                                    <span className="font-extrabold text-orange-600">
+                                      -{formatMoneyVnd(disc)}
+                                    </span>
+                                  </p>
+                                );
+                              })()}
                               <p className="font-bold">
                                 <span className="font-semibold text-slate-500">Tổng đơn:</span>{" "}
                                 {shouldShowOriginalFinalStrike(o) ? (
@@ -638,6 +776,7 @@ export default function OrderLookupView() {
           qrCodeUrl={selectedQr?.qrCodeUrl ?? ""}
           orderCode={selectedQr?.orderCode}
         />
+        <RefundPolicyModal open={refundPolicyOpen} onClose={() => setRefundPolicyOpen(false)} />
       </div>
     </MainLayout>
   );

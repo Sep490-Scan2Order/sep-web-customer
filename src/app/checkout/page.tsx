@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
@@ -193,8 +193,13 @@ function CheckoutContent() {
     }
   }, [cartId, SESSION_RESULT_KEY]);
 
+  const promotionFetchedRef = useRef(false);
+
   useEffect(() => {
     if (!cart || !restaurantIdParam) return;
+    // Chỉ fetch 1 lần sau khi cart load xong lần đầu
+    if (promotionFetchedRef.current) return;
+    promotionFetchedRef.current = true;
     const fetchPromotions = async () => {
       setLoadingPromotions(true);
       try {
@@ -212,8 +217,7 @@ function CheckoutContent() {
       }
     };
     fetchPromotions();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantIdParam]); // Chỉ fetch 1 lần khi load trang, không re-fetch mỗi lần qty thay đổi
+  });
 
   useEffect(() => {
     if (step.kind !== "done_cash" || cashConfirmed) return;
