@@ -2,12 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { X } from "lucide-react";
+import { OrderDetailLineList } from "@/components/orderLookup/OrderDetailLineList";
 import { QrCodeModal } from "@/components/ui/common/QrCodeModal";
 import {
   getCustomerActiveOrdersAllRestaurants,
   type AllRestaurantOrderSummary,
   type CustomerOrderSummary,
 } from "@/services/orderCustomerService";
+import {
+  isRefundLogEntry,
+  orderDetailsSectionTitle,
+  resolveParentOrderFromList,
+  shouldShowOriginalFinalStrike,
+} from "@/utils/customerOrderLookupDisplay";
 
 type CustomerOrder = AllRestaurantOrderSummary;
 
@@ -56,64 +63,6 @@ function refundTypeLabel(refundType: number | null | undefined): string {
   if (refundType === 1) return "Lỗi khách quan phía nhà hàng";
   if (refundType === 2) return "Lỗi nhân viên";
   return "Hoàn tiền";
-}
-
-function isRefundOrder(o: CustomerOrderSummary): boolean {
-  return o.isRefundLog === true || Boolean(o.refundOrderId?.trim()) || o.typeOrder === 1;
-}
-
-function resolveParentOrderFromList(
-  orders: CustomerOrderSummary[],
-  refundOrderId: string | null | undefined
-): CustomerOrderSummary | null {
-  if (!refundOrderId?.trim()) return null;
-  const id = refundOrderId.trim().toLowerCase();
-  const match = orders.find((x) => x.orderId.toLowerCase() === id);
-  if (!match || isRefundOrder(match)) return null;
-  return match;
-}
-
-function resolveParentOrderCodeFromList(
-  orders: CustomerOrderSummary[],
-  refundOrderId: string | null | undefined
-): number | null {
-  return resolveParentOrderFromList(orders, refundOrderId)?.orderCode ?? null;
-}
-
-function findRefundLogsForParent(
-  orders: CustomerOrderSummary[],
-  parentOrderId: string
-): CustomerOrderSummary[] {
-  const pid = parentOrderId.trim().toLowerCase();
-  if (!pid) return [];
-  return orders.filter(
-    (o) => isRefundOrder(o) && (o.refundOrderId?.trim().toLowerCase() ?? "") === pid
-  );
-}
-
-function pickLatestRefundLog(logs: CustomerOrderSummary[]): CustomerOrderSummary | null {
-  if (!logs.length) return null;
-  return [...logs].sort((a, b) => {
-    const ta = Date.parse(a.createdAt);
-    const tb = Date.parse(b.createdAt);
-    if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) return tb - ta;
-    return String(b.createdAt).localeCompare(String(a.createdAt));
-  })[0]!;
-}
-
-function resolveDisplayOrderDetails(
-  orders: CustomerOrderSummary[],
-  o: CustomerOrderSummary
-): { details: NonNullable<CustomerOrderSummary["orderDetails"]>; source: "order" | "refund_log" } {
-  const direct = Array.isArray(o.orderDetails) ? o.orderDetails : [];
-  if (direct.length > 0) return { details: direct, source: "order" };
-  if (isRefundOrder(o)) return { details: [], source: "order" };
-
-  const logs = findRefundLogsForParent(orders, o.orderId);
-  const latest = pickLatestRefundLog(logs);
-  const fromLog = Array.isArray(latest?.orderDetails) ? latest!.orderDetails! : [];
-  if (fromLog.length > 0) return { details: fromLog, source: "refund_log" };
-  return { details: [], source: "order" };
 }
 
 function statusStyle(status: number): {
@@ -198,28 +147,6 @@ function isRenderableQrUrl(url?: string | null): boolean {
   return u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:");
 }
 
-function renderLinePrice(line: {
-  originalPrice: number;
-  quantity: number;
-  subTotal: number;
-  discountedPrice?: number | null;
-}): { original: number; discounted: number | null } {
-  const originalLineTotal = line.originalPrice * line.quantity;
-  const discountedLineTotal = line.subTotal;
-
-  if (
-    Number.isFinite(discountedLineTotal) &&
-    discountedLineTotal > 0 &&
-    discountedLineTotal < originalLineTotal
-  ) {
-    return { original: originalLineTotal, discounted: discountedLineTotal };
-  }
-  return {
-    original: Number.isFinite(discountedLineTotal) && discountedLineTotal > 0 ? discountedLineTotal : originalLineTotal,
-    discounted: null,
-  };
-}
-
 export type AllRestaurantsOrderLookupDrawerProps = {
   open: boolean;
   onClose: () => void;
@@ -262,7 +189,7 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
     return allOrders.filter((o) => Number(o.restaurantId) === selectedRestaurantId);
   }, [allOrders, selectedRestaurantId]);
 
-  const hasRefundInList = useMemo(() => ordersForRestaurant.some(isRefundOrder), [ordersForRestaurant]);
+  const hasRefundInList = useMemo(() => ordersForRestaurant.some(isRefundLogEntry), [ordersForRestaurant]);
 
   useEffect(() => {
     if (activeTabKey === "refund" && !hasRefundInList) setActiveTabKey(0);
@@ -280,16 +207,16 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
 
   const visibleOrders = useMemo(() => {
     if (activeTabKey === "refund") {
-      return ordersForRestaurant.filter(isRefundOrder);
+      return ordersForRestaurant.filter(isRefundLogEntry);
     }
     const s = activeTabKey as number;
     if (s === 4) {
-      return ordersForRestaurant.filter((o) => o.status === 4 && !isRefundOrder(o));
+      return ordersForRestaurant.filter((o) => o.status === 4 && !isRefundLogEntry(o));
     }
     if (s === 5) {
-      return ordersForRestaurant.filter((o) => o.status === 5 && !isRefundOrder(o));
+      return ordersForRestaurant.filter((o) => o.status === 5 && !isRefundLogEntry(o));
     }
-    return ordersForRestaurant.filter((o) => o.status === s);
+    return ordersForRestaurant.filter((o) => o.status === s && !isRefundLogEntry(o));
   }, [ordersForRestaurant, activeTabKey]);
 
   const hideQrDeliveredOrCancelled = activeTabKey === 4 || activeTabKey === 5;
@@ -476,10 +403,10 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                             const sStyle = statusStyle(s);
                             const count =
                               s === 4
-                                ? ordersForRestaurant.filter((o) => o.status === 4 && !isRefundOrder(o)).length
+                                ? ordersForRestaurant.filter((o) => o.status === 4 && !isRefundLogEntry(o)).length
                                 : s === 5
-                                  ? ordersForRestaurant.filter((o) => o.status === 5 && !isRefundOrder(o)).length
-                                  : ordersForRestaurant.filter((o) => o.status === s).length;
+                                  ? ordersForRestaurant.filter((o) => o.status === 5 && !isRefundLogEntry(o)).length
+                                  : ordersForRestaurant.filter((o) => o.status === s && !isRefundLogEntry(o)).length;
                             const isActive = activeTabKey === s;
                             return (
                               <button
@@ -527,7 +454,7 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                     : "bg-slate-100 text-slate-700"
                                 }`}
                               >
-                                {ordersForRestaurant.filter(isRefundOrder).length}
+                                {ordersForRestaurant.filter(isRefundLogEntry).length}
                               </span>
                             </button>
                           )}
@@ -540,11 +467,7 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                         <ul className="grid grid-cols-1 gap-3">
                           {visibleOrders.map((o) => {
                             const styles = statusStyle(o.status);
-                            const isRefund = isRefundOrder(o);
-                            const onRefundTab = activeTabKey === "refund";
-                            const hasLinkedRefundLog =
-                              !isRefund && findRefundLogsForParent(ordersForRestaurant, o.orderId).length > 0;
-                            const showRefundBadge = (isRefund && !onRefundTab) || (!isRefund && hasLinkedRefundLog);
+                            const isRefund = isRefundLogEntry(o);
                             const createdText = (() => {
                               try {
                                 return new Date(o.createdAt).toLocaleString("vi-VN");
@@ -560,28 +483,19 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                 parentOrder?.createdAt != null && String(parentOrder.createdAt).trim() !== ""
                                   ? formatDateTimeVi(parentOrder.createdAt)
                                   : null;
-                              const amountFromParent =
-                                parentOrder != null && Number.isFinite(parentOrder.finalAmount)
-                                  ? parentOrder.finalAmount
-                                  : null;
-                              const displayRefundAmount =
-                                amountFromParent != null
-                                  ? amountFromParent
-                                  : o.finalAmount > 0 && Number.isFinite(o.finalAmount)
-                                    ? o.finalAmount
-                                    : null;
+                              const slipDetails = Array.isArray(o.orderDetails) ? o.orderDetails : [];
                               return (
                                 <li key={o.orderId}>
                                   <div className="w-full rounded-2xl border border-violet-200 bg-violet-50/40 p-3 shadow-sm">
                                     <div className="flex flex-col gap-2">
                                       <div>
                                         <p className="text-xs font-bold uppercase tracking-wide text-violet-700">
-                                          Hoàn tiền
+                                          Phiếu hoàn tiền
                                         </p>
                                         {parentOrderCode != null ? (
                                           <>
                                             <p className="mt-1 text-lg font-extrabold leading-snug text-slate-900">
-                                              Hoàn cho đơn #{parentOrderCode}
+                                              Liên quan đơn #{parentOrderCode}
                                             </p>
                                             {parentCreatedText && (
                                               <p className="mt-1 text-sm text-slate-600">
@@ -614,16 +528,24 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                       </p>
 
                                       <div className="mt-1 space-y-2 border-t border-violet-100 pt-2">
-                                        {displayRefundAmount != null ? (
-                                          <p className="text-sm font-bold text-slate-900">
-                                            <span className="font-semibold text-slate-600">Số tiền tương ứng đơn đặt: </span>
-                                            {formatMoneyVnd(displayRefundAmount)}
-                                          </p>
-                                        ) : (
-                                          <p className="text-sm text-slate-600">
-                                            Không lấy được giá trị đơn gốc trong danh sách — vui lòng xem tab{" "}
-                                            <strong>Đã giao</strong> / <strong>Đã huỷ</strong> hoặc hỏi cửa hàng.
-                                          </p>
+                                        <p className="text-sm font-bold text-slate-900">
+                                          <span className="font-semibold text-slate-600">Số tiền hoàn (lần này): </span>
+                                          {formatMoneyVnd(Number.isFinite(o.finalAmount) ? o.finalAmount : 0)}
+                                        </p>
+                                        {slipDetails.length > 0 && (
+                                          <div className="rounded-xl border border-violet-100 bg-white/70 px-2.5 py-2">
+                                            <p className="mb-0.5 text-xs font-extrabold uppercase tracking-wide text-violet-800">
+                                              {orderDetailsSectionTitle(true)}
+                                            </p>
+                                            <ul className="mt-1 space-y-0">
+                                              <OrderDetailLineList
+                                                order={o}
+                                                lines={slipDetails}
+                                                ctx="refund_log"
+                                                formatMoneyVnd={formatMoneyVnd}
+                                              />
+                                            </ul>
+                                          </div>
                                         )}
                                         <p className="text-sm leading-relaxed text-slate-600">
                                           Tiền sẽ được hoàn <strong>bằng tiền mặt</strong> hoặc{" "}
@@ -636,6 +558,8 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                               );
                             }
 
+                            const displayDetails = Array.isArray(o.orderDetails) ? o.orderDetails : [];
+
                             return (
                               <li key={o.orderId}>
                                 <div className={`w-full rounded-2xl border p-3 shadow-sm ${styles.card}`}>
@@ -647,98 +571,27 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                     }
                                   >
                                     <div className="min-w-0">
-                                      {(() => {
-                                        const { details: displayDetails, source: detailsSource } =
-                                          resolveDisplayOrderDetails(ordersForRestaurant, o);
-                                        return (
-                                          <>
                                       <div className="flex flex-wrap items-center gap-2">
                                         <p className="text-base font-extrabold text-slate-900">Đơn #{o.orderCode}</p>
-                                        {showRefundBadge && (
-                                          <span
-                                            className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-bold text-violet-800 ring-1 ring-violet-200"
-                                            title={
-                                              (() => {
-                                                if (isRefund) {
-                                                  const code = resolveParentOrderCodeFromList(
-                                                    ordersForRestaurant,
-                                                    o.refundOrderId
-                                                  );
-                                                  return code != null
-                                                    ? `Hoàn cho đơn #${code} • ${refundTypeLabel(o.refundType)}`
-                                                    : refundTypeLabel(o.refundType);
-                                                }
-                                                return "Có bản ghi hoàn tiền liên quan đơn này";
-                                              })()
-                                            }
-                                          >
-                                            Hoàn tiền
-                                          </span>
-                                        )}
                                       </div>
 
                                       <p className="mt-1 text-sm text-slate-600">Tạo lúc: {createdText}</p>
 
                                       {displayDetails.length > 0 && (
-                                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                                          <p className="text-xs font-extrabold uppercase tracking-wide text-slate-500">
-                                            Món đã đặt
+                                        <div className="mt-2.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                          <p className="mb-0.5 text-xs font-extrabold uppercase tracking-wide text-slate-500">
+                                            {orderDetailsSectionTitle(false)}
                                           </p>
-                                          <ul className="mt-2 space-y-2">
-                                            {displayDetails.map((d) => {
-                                              const price = renderLinePrice(d);
-                                              return (
-                                                <li
-                                                  key={`${o.orderId}-${d.dishId}`}
-                                                  className="flex items-start justify-between gap-3"
-                                                >
-                                                  <div className="flex min-w-0 items-start gap-2">
-                                                    {d.imageUrl ? (
-                                                      <img
-                                                        src={d.imageUrl}
-                                                        alt={d.dishName}
-                                                        className="mt-0.5 h-10 w-10 rounded-lg border border-slate-200 bg-white object-cover"
-                                                        loading="lazy"
-                                                      />
-                                                    ) : (
-                                                      <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-[10px] font-bold text-slate-400">
-                                                        Ảnh
-                                                      </div>
-                                                    )}
-                                                    <div className="min-w-0">
-                                                      <p className="truncate text-sm font-semibold text-slate-900">
-                                                        {d.dishName}
-                                                      </p>
-                                                      <p className="mt-0.5 text-xs font-semibold text-slate-500">
-                                                        x {d.quantity}
-                                                      </p>
-                                                    </div>
-                                                  </div>
-                                                  <div className="shrink-0 text-right">
-                                                    {price.discounted != null ? (
-                                                      <div className="space-x-2">
-                                                        <span className="text-xs font-semibold text-slate-400 line-through">
-                                                          {formatMoneyVnd(price.original)}
-                                                        </span>
-                                                        <span className="text-sm font-extrabold text-slate-900">
-                                                          {formatMoneyVnd(price.discounted)}
-                                                        </span>
-                                                      </div>
-                                                    ) : (
-                                                      <span className="text-sm font-extrabold text-slate-900">
-                                                        {formatMoneyVnd(price.original)}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                </li>
-                                              );
-                                            })}
+                                          <ul className="mt-1 space-y-0">
+                                            <OrderDetailLineList
+                                              order={o}
+                                              lines={displayDetails}
+                                              ctx="original"
+                                              formatMoneyVnd={formatMoneyVnd}
+                                            />
                                           </ul>
                                         </div>
                                       )}
-                                          </>
-                                        );
-                                      })()}
 
                                       <div
                                         className={
@@ -748,8 +601,19 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
                                         }
                                       >
                                         <p className="font-bold">
-                                          <span className="font-semibold text-slate-500">Tổng cộng:</span>{" "}
-                                          {formatMoneyVnd(o.finalAmount)}
+                                          <span className="font-semibold text-slate-500">Tổng đơn:</span>{" "}
+                                          {shouldShowOriginalFinalStrike(o) ? (
+                                            <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                              <span className="text-sm font-extrabold text-slate-900">
+                                                {formatMoneyVnd(o.finalAmount)}
+                                              </span>
+                                              <span className="text-xs font-semibold text-slate-400 line-through">
+                                                trước hoàn {formatMoneyVnd(o.originalFinalAmount ?? o.finalAmount)}
+                                              </span>
+                                            </span>
+                                          ) : (
+                                            formatMoneyVnd(o.finalAmount)
+                                          )}
                                         </p>
                                         {!hideQrDeliveredOrCancelled && (
                                           <p className="sm:text-right">

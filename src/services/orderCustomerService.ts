@@ -370,6 +370,24 @@ export async function getAvailablePromotions(req: {
   ];
 }
 
+export type CustomerOrderDetailDto = {
+  dishId: number;
+  dishName: string;
+  imageUrl?: string | null;
+  /** Đơn gốc: số phần còn lại. Phiếu refund: snapshot theo backend. */
+  quantity: number;
+  originalPrice: number;
+  discountedPrice?: number | null;
+  /** Đơn gốc: tổng dòng còn lại (tỷ lệ). Phiếu refund: tiền hoàn dòng. */
+  subTotal: number;
+  /** Đơn gốc: số lượng lúc đặt. */
+  orderedQuantity?: number | null;
+  /** Đơn gốc: số phần đã hoàn trên dòng. */
+  refundedQuantity?: number | null;
+  /** Đơn gốc: tổng tiền dòng lúc đặt (trước scale theo phần còn). */
+  originalSubTotal?: number | null;
+};
+
 export type CustomerOrderSummary = {
   restaurantId?: number;
   orderId: string;
@@ -378,20 +396,17 @@ export type CustomerOrderSummary = {
   createdAt: string;
   updatedAt?: string | null;
   finalAmount: number;
+  /**
+   * Đơn gốc: tổng trước khi trừ các lần hoàn (tính từ list response).
+   * Phiếu refund: bằng finalAmount phiếu (không cộng thêm).
+   */
+  originalFinalAmount?: number | null;
   qrCodeUrl: string;
   typeOrder?: number;
   refundType?: number | null;
   refundOrderId?: string | null;
   isRefundLog?: boolean;
-  orderDetails?: Array<{
-    dishId: number;
-    dishName: string;
-    imageUrl?: string | null;
-    quantity: number;
-    originalPrice: number;
-    discountedPrice?: number | null;
-    subTotal: number;
-  }>;
+  orderDetails?: CustomerOrderDetailDto[];
 };
 
 /**
