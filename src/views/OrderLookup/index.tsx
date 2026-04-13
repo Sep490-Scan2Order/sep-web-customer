@@ -13,7 +13,6 @@ import {
   isRefundLogEntry,
   orderDetailsSectionTitle,
   resolveParentOrderFromList,
-  shouldShowOriginalFinalStrike,
   inferOrderLevelDiscount,
 } from "@/utils/customerOrderLookupDisplay";
 
@@ -616,6 +615,7 @@ export default function OrderLookupView() {
                                   <ul className="mt-1 space-y-0">
                                     <OrderDetailLineList
                                       order={o}
+                                      parentOrder={parentOrder}
                                       lines={slipDetails}
                                       ctx="refund_log"
                                       formatMoneyVnd={formatMoneyVnd}
@@ -702,18 +702,7 @@ export default function OrderLookupView() {
                               })()}
                               <p className="font-bold">
                                 <span className="font-semibold text-slate-500">Tổng đơn:</span>{" "}
-                                {shouldShowOriginalFinalStrike(o) ? (
-                                  <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                    <span className="text-sm font-extrabold text-slate-900">
-                                      {formatMoneyVnd(o.finalAmount)}
-                                    </span>
-                                    <span className="text-xs font-semibold text-slate-400 line-through">
-                                      trước hoàn {formatMoneyVnd(o.originalFinalAmount ?? o.finalAmount)}
-                                    </span>
-                                  </span>
-                                ) : (
-                                  formatMoneyVnd(o.finalAmount)
-                                )}
+                                {formatMoneyVnd((o.originalFinalAmount ?? o.finalAmount) as number)}
                               </p>
                               {!hideQrDeliveredOrCancelled && (
                                 <p className="sm:text-right">

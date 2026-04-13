@@ -1,21 +1,16 @@
 "use client";
 
 import type { CustomerOrderSummary } from "@/services/orderCustomerService";
-import {
-  formatOriginalLineQuantityCaption,
-  lineAmountsForDisplay,
-  originalLineHasRefund,
-  detectRefundLineOrderLevelRatio,
-  type CustomerOrderDetailLine,
-} from "@/utils/customerOrderLookupDisplay";
+import { type CustomerOrderDetailLine } from "@/utils/customerOrderLookupDisplay";
 
 type OrderDetailLineListProps = {
   order: CustomerOrderSummary;
+  /** Đơn gốc tương ứng (chỉ dùng khi ctx="refund_log" để lấy giá lúc mua). */
+  parentOrder?: CustomerOrderSummary | null;
   lines: CustomerOrderDetailLine[];
+  /** original: hiển thị như lúc mua (trước hoàn). refund_log: hiển thị lúc mua -> hoàn. */
   ctx: "original" | "refund_log";
   formatMoneyVnd: (amount: number) => string;
-  /** Tỉ lệ thanh toán thực tế do KM theo đơn (0-1). Chỉ dùng khi ctx=refund_log và đơn có KM level đơn. */
-  paymentRatio?: number | null;
 };
 
 function compactLineQuantity(d: CustomerOrderDetailLine): number {
@@ -24,42 +19,52 @@ function compactLineQuantity(d: CustomerOrderDetailLine): number {
   return 0;
 }
 
-export function OrderDetailLineList({ order, lines, ctx, formatMoneyVnd, paymentRatio }: OrderDetailLineListProps) {
+function findParentLineByDishId(parent: CustomerOrderSummary | null | undefined, dishId: number) {
+  const list = Array.isArray(parent?.orderDetails) ? parent!.orderDetails! : [];
+  return list.find((x) => x.dishId === dishId) ?? null;
+}
+
+function lineAmountAsPurchased(d: CustomerOrderDetailLine): number {
+  const purchasedSub =
+    typeof d.originalSubTotal === "number" && Number.isFinite(d.originalSubTotal) ? d.originalSubTotal : null;
+  if (purchasedSub != null) return purchasedSub;
+  const qty = compactLineQuantity(d);
+  const unitPurchased =
+    typeof d.discountedPrice === "number" && Number.isFinite(d.discountedPrice) ? d.discountedPrice : d.originalPrice;
+  return Number.isFinite(unitPurchased) ? unitPurchased * qty : 0;
+}
+
+export function OrderDetailLineList({ order, parentOrder = null, lines, ctx, formatMoneyVnd }: OrderDetailLineListProps) {
   return (
     <>
       {lines.map((d, idx) => {
-        const amounts = lineAmountsForDisplay(d, ctx);
-        const showRefundQtyDetail = ctx === "original" && originalLineHasRefund(d);
-        let detailCaption: string | null = null;
-        if (showRefundQtyDetail) {
-          detailCaption = formatOriginalLineQuantityCaption(d);
-          if (!detailCaption) {
-            const ref =
-              typeof d.refundedQuantity === "number" && Number.isFinite(d.refundedQuantity)
-                ? d.refundedQuantity
-                : 0;
-            const q = typeof d.quantity === "number" && Number.isFinite(d.quantity) ? d.quantity : 0;
-            detailCaption = `Đã hoàn ${ref} · Còn ${q}`;
-          }
-        }
-        let refundLogCaption: string | null = null;
-        if (ctx === "refund_log") {
-          if (typeof d.orderedQuantity === "number" && Number.isFinite(d.orderedQuantity)) {
-            refundLogCaption = `Hoàn ${d.orderedQuantity} phần`;
-          } else if (d.quantity > 0) {
-            refundLogCaption = `Hoàn ${d.quantity} phần`;
-          }
-        }
+        const qtyPurchased = compactLineQuantity(d);
+        const purchasedAmount = (() => {
+          if (ctx !== "refund_log") return lineAmountAsPurchased(d);
+          const parentLine = findParentLineByDishId(parentOrder, d.dishId);
+          const unitPurchased =
+            typeof parentLine?.discountedPrice === "number" && Number.isFinite(parentLine.discountedPrice)
+              ? parentLine.discountedPrice
+              : typeof parentLine?.originalPrice === "number" && Number.isFinite(parentLine.originalPrice)
+                ? parentLine.originalPrice
+                : typeof d.discountedPrice === "number" && Number.isFinite(d.discountedPrice)
+                  ? d.discountedPrice
+                  : d.originalPrice;
+          return Number.isFinite(unitPurchased) ? unitPurchased * qtyPurchased : 0;
+        })();
 
-        // Phát hiện KM level đơn trong refund_log — chỉ dùng cho logic nội bộ, không hiển thị trên UI nữa
-        const lineRatio = ctx === "refund_log" ? detectRefundLineOrderLevelRatio(d) : null;
-        const showRatioBreakdown = false; // Đã ẩn theo yêu cầu — chỉ hiện số tiền hoàn
-        const baseLineTotal: number | null = null;
-        const lineFullyRefunded =
-          ctx === "original" &&
-          typeof d.quantity === "number" &&
-          Number.isFinite(d.quantity) &&
-          d.quantity === 0;
+        const strikeAmount = (() => {
+          // Strike giá gốc trên món (nếu có giảm giá món) theo đúng số lượng lúc mua
+          const parentLine = ctx === "refund_log" ? findParentLineByDishId(parentOrder, d.dishId) : null;
+          const origUnit =
+            typeof parentLine?.originalPrice === "number" && Number.isFinite(parentLine.originalPrice)
+              ? parentLine.originalPrice
+              : d.originalPrice;
+          const origTotal = Number.isFinite(origUnit) ? origUnit * qtyPurchased : 0;
+          return origTotal > 0 && origTotal > purchasedAmount ? origTotal : null;
+        })();
+
+        const refundAmount = Number.isFinite(d.subTotal) ? d.subTotal : 0;
 
         return (
           <li
@@ -80,48 +85,29 @@ export function OrderDetailLineList({ order, lines, ctx, formatMoneyVnd, payment
                 </div>
               )}
               <div className="min-w-0 leading-tight">
-                {ctx === "original" && !showRefundQtyDetail ? (
-                  <p className="truncate text-sm font-semibold text-slate-900">
-                    <span>{d.dishName}</span>
-                    <span className="font-semibold text-slate-500"> ×{compactLineQuantity(d)}</span>
+                <p className="truncate text-sm font-semibold text-slate-900">
+                  <span>{d.dishName}</span>
+                  <span className="font-semibold text-slate-500"> ×{qtyPurchased}</span>
+                </p>
+                {ctx === "refund_log" && (
+                  <p className="mt-1 text-sm font-extrabold leading-snug text-violet-800">
+                    Giá lúc mua: {formatMoneyVnd(purchasedAmount)}
                   </p>
-                ) : (
-                  <>
-                    <p className="truncate text-sm font-semibold text-slate-900">{d.dishName}</p>
-                    {ctx === "original" && showRefundQtyDetail && detailCaption && (
-                      <p className="mt-0.5 text-[11px] font-semibold leading-snug text-slate-500">
-                        {detailCaption}
-                        {lineFullyRefunded && (
-                          <span className="ml-1 font-bold text-rose-700">· Đã hoàn hết</span>
-                        )}
-                      </p>
-                    )}
-                    {ctx === "refund_log" && refundLogCaption && (
-                      <p className="mt-0.5 text-[11px] font-semibold leading-snug text-violet-800">
-                        {refundLogCaption}
-                      </p>
-                    )}
-                  </>
                 )}
               </div>
             </div>
             <div className="shrink-0 text-right">
-              {ctx === "refund_log" && showRatioBreakdown && baseLineTotal !== null ? (
-                <div className="flex flex-col items-end gap-0.5">
-                  <span className="text-xs font-semibold text-slate-400 line-through">
-                    {formatMoneyVnd(baseLineTotal)}
-                  </span>
-                  <span className="text-sm font-extrabold text-rose-600">{formatMoneyVnd(amounts.main)}</span>
-                </div>
-              ) : amounts.struck != null ? (
+              {ctx === "refund_log" ? (
+                <span className="text-sm font-extrabold text-slate-900">Hoàn {formatMoneyVnd(refundAmount)}</span>
+              ) : strikeAmount != null ? (
                 <div className="space-x-2">
                   <span className="text-xs font-semibold text-slate-400 line-through">
-                    {formatMoneyVnd(amounts.struck)}
+                    {formatMoneyVnd(strikeAmount)}
                   </span>
-                  <span className="text-sm font-extrabold text-slate-900">{formatMoneyVnd(amounts.main)}</span>
+                  <span className="text-sm font-extrabold text-slate-900">{formatMoneyVnd(purchasedAmount)}</span>
                 </div>
               ) : (
-                <span className="text-sm font-extrabold text-slate-900">{formatMoneyVnd(amounts.main)}</span>
+                <span className="text-sm font-extrabold text-slate-900">{formatMoneyVnd(purchasedAmount)}</span>
               )}
             </div>
           </li>
