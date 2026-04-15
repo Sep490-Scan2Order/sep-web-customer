@@ -14,6 +14,7 @@ import {
   getNearbyRestaurants,
   getRestaurantById,
   getRestaurantBySlug,
+  getRestaurantSuggestions,
   getRestaurantsAll,
 } from "@/services/restaurantService";
 
@@ -156,6 +157,52 @@ describe("restaurantService", () => {
         distance: "~ 1.23 km",
         address: "HCM",
       });
+    });
+
+    it("maps suggested restaurants and omits distance when distanceKm is null", async () => {
+      getMock.mockResolvedValueOnce({
+        data: {
+          isSuccess: true,
+          message: "ok",
+          data: [
+            {
+              id: 61,
+              tenantId: "t1",
+              restaurantName: "Kichi Kichi",
+              address: "56 Lê Văn Việt",
+              longitude: 106.77,
+              latitude: 10.84,
+              image: "https://example.com/img.png",
+              phone: null,
+              slug: "kichi",
+              description: "�u băng chuyền",
+              profileUrl: null,
+              qrMenu: null,
+              isActive: true,
+              isOpened: true,
+              isReceivingOrders: true,
+              totalOrder: 0,
+              createdAt: "2026-03-03T13:36:11.585515Z",
+              distanceKm: null,
+              openTime: "10:00",
+              closeTime: "20:00",
+              minCashAmount: 0,
+            },
+          ],
+        },
+      });
+
+      const result = await getRestaurantSuggestions();
+
+      expect(getMock).toHaveBeenCalledWith("/Restaurant/suggestions", undefined);
+      expect(result[0]).toMatchObject({
+        id: "61",
+        renderKey: "suggestion-61",
+        name: "Kichi Kichi",
+        cuisineType: "Hotpot conveyor",
+        address: "56 Lê Văn Việt",
+      });
+      expect(result[0].distance).toBeUndefined();
     });
 
     it("returns fallback paged result when API data is null", async () => {

@@ -48,6 +48,30 @@ export async function getNearbyRestaurants(
   }));
 }
 
+export function mapRestaurantSlugDataToCard(d: RestaurantSlugResponseData): Restaurant {
+  const distance =
+    d.distanceKm != null && !Number.isNaN(d.distanceKm)
+      ? `~ ${d.distanceKm.toFixed(2)} km`
+      : undefined;
+  return {
+    id: String(d.id),
+    renderKey: `suggestion-${d.id}`,
+    name: d.restaurantName,
+    image: d.image || "/placeholder-restaurant.jpg",
+    rating: 0,
+    cuisineType: d.description || "Nhà hàng",
+    ...(distance ? { distance } : {}),
+    address: d.address,
+  };
+}
+
+export async function getRestaurantSuggestions(): Promise<Restaurant[]> {
+  const { data } = await api.get<ApiResponse<RestaurantSlugResponseData[]>>(
+    API.RESTAURANT.GET_SUGGESTIONS
+  );
+  return (data.data ?? []).map((d) => mapRestaurantSlugDataToCard(d));
+}
+
 // ==========================================
 // SERVER FETCH (Dùng Native Fetch cho Cloudflare Edge)
 // ==========================================

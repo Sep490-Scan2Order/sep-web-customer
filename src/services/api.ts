@@ -27,6 +27,7 @@ export const API = {
     },
     RESTAURANT: {
         GET_NEARBY: "/Restaurant/nearby",
+        GET_SUGGESTIONS: "/Restaurant/suggestions",
         GET_BY_ID: (id: number | string) => `/Restaurant/${id}`,
         GET_BY_SLUG: (slug: string) => `/Restaurant/${encodeURIComponent(slug)}`,
         GET_ALL: "/Restaurant/all",

@@ -3,6 +3,7 @@ export { Footer } from "./Footer";
 export { HeroSection } from "./HeroSection";
 export { RestaurantCard } from "./RestaurantCard";
 export { NearbyRestaurantGrid } from "./NearbyRestaurantGrid";
+export { SuggestedRestaurantGrid } from "./SuggestedRestaurantGrid";
 export { AllRestaurantsList } from "./AllRestaurantsList";
 export { HybridSearchResults } from "./HybridSearchResults";
 export { QrCodeModal } from "./QrCodeModal";
