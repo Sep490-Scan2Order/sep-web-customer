@@ -24,6 +24,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  addToCart,
   checkoutBankTransfer,
   checkoutCash,
   getCustomerActiveOrders,
@@ -31,7 +32,6 @@ import {
   updateCartItem,
   PENDING_BANK_TRANSFER_TTL_MS,
   CART_DATA_STORAGE_KEY,
-  CART_ID_STORAGE_KEY,
   savePendingBankTransfer,
   clearPendingBankTransfer,
   clearCartCache,
@@ -42,6 +42,7 @@ import {
   type CheckoutBankTransferResponse,
   type CheckoutCashResponse,
   type PromotionResponse,
+  type RecommendedDish,
 } from "@/services/orderCustomerService";
 
 /* ─── Helpers ─── */
@@ -67,7 +68,12 @@ interface OrderItemRowProps {
   onDecrease: () => void;
 }
 
-function OrderItemRow({ item, updating, onIncrease, onDecrease }: OrderItemRowProps) {
+function OrderItemRow({
+  item,
+  updating,
+  onIncrease,
+  onDecrease,
+}: OrderItemRowProps) {
   return (
     <div className="flex items-center gap-3 py-3 w-full">
       <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
@@ -82,7 +88,9 @@ function OrderItemRow({ item, updating, onIncrease, onDecrease }: OrderItemRowPr
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-slate-800">{item.dishName}</p>
+        <p className="truncate text-sm font-semibold text-slate-800">
+          {item.dishName}
+        </p>
         {item.promotionName && (
           <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-0.5 text-[11px] font-semibold text-orange-800 ring-1 ring-orange-200">
             <Tag className="h-2.5 w-2.5 shrink-0" />
@@ -101,10 +109,18 @@ function OrderItemRow({ item, updating, onIncrease, onDecrease }: OrderItemRowPr
           type="button"
           disabled={updating}
           onClick={onDecrease}
-          aria-label={item.quantity === 1 ? `Xóa ${item.dishName}` : `Giảm ${item.dishName}`}
+          aria-label={
+            item.quantity === 1
+              ? `Xóa ${item.dishName}`
+              : `Giảm ${item.dishName}`
+          }
           className="flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {item.quantity === 1 ? <X className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+          {item.quantity === 1 ? (
+            <X className="h-3 w-3" />
+          ) : (
+            <Minus className="h-3 w-3" />
+          )}
         </button>
         <span className="min-w-[1.5rem] text-center text-sm font-bold text-slate-800">
           {updating ? (
@@ -123,17 +139,26 @@ function OrderItemRow({ item, updating, onIncrease, onDecrease }: OrderItemRowPr
           <Plus className="h-3 w-3" />
         </button>
       </div>
-      <p className="shrink-0 min-w-[4.5rem] text-right text-sm font-bold text-orange-600">{formatVND(item.subTotal)}</p>
+      <p className="shrink-0 min-w-[4.5rem] text-right text-sm font-bold text-orange-600">
+        {formatVND(item.subTotal)}
+      </p>
     </div>
   );
 }
 
-function SectionCard({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function SectionCard({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={`rounded-2xl bg-white px-4 shadow-sm ${className}`}>{children}</div>
+    <div className={`rounded-2xl bg-white px-4 shadow-sm ${className}`}>
+      {children}
+    </div>
   );
 }
-
 
 /* ─── Main checkout content ─── */
 function CheckoutContent() {
@@ -156,9 +181,17 @@ function CheckoutContent() {
   /** dishId đang được cập nhật số lượng (chỉ 1 tại một thời điểm) */
   const [updatingDishId, setUpdatingDishId] = useState<number | null>(null);
   const [updateCartError, setUpdateCartError] = useState<string | null>(null);
+  const [addingRecommendationDishId, setAddingRecommendationDishId] = useState<
+    number | null
+  >(null);
+  const [recommendationError, setRecommendationError] = useState<string | null>(
+    null,
+  );
 
   const [promotions, setPromotions] = useState<PromotionResponse[]>([]);
-  const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(null);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<number | null>(
+    null,
+  );
   const [loadingPromotions, setLoadingPromotions] = useState(false);
 
   const SESSION_RESULT_KEY = cartId ? `s2o_order_result_${cartId}` : "";
@@ -171,16 +204,24 @@ function CheckoutContent() {
     try {
       const savedResult = window.localStorage.getItem(SESSION_RESULT_KEY);
       if (savedResult) {
-        const parsed = JSON.parse(savedResult) as { step: OrderStep; savedAt: number };
+        const parsed = JSON.parse(savedResult) as {
+          step: OrderStep;
+          savedAt: number;
+        };
         const TTL_MS = PENDING_BANK_TRANSFER_TTL_MS; // 15 phút — đồng bộ với TTL banner "Quay lại thanh toán"
         if (Date.now() - parsed.savedAt > TTL_MS) {
           window.localStorage.removeItem(SESSION_RESULT_KEY);
-        } else if (parsed.step?.kind === "done_cash" || parsed.step?.kind === "done_bank") {
+        } else if (
+          parsed.step?.kind === "done_cash" ||
+          parsed.step?.kind === "done_bank"
+        ) {
           setStep(parsed.step);
           return;
         }
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     try {
       const cached = loadCartByCartId(cartId);
       if (!cached) {
@@ -208,7 +249,7 @@ function CheckoutContent() {
           orderTotal: cart.totalAmount,
         });
         setPromotions(res);
-        const best = res.find(p => p.isRecommended);
+        const best = res.find((p) => p.isRecommended);
         if (best) setSelectedPromotionId(best.id);
       } catch (err) {
         console.error("Failed to load promotions", err);
@@ -240,12 +281,14 @@ function CheckoutContent() {
             window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
           }
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     checkStatus();
     const interval = setInterval(checkStatus, 3000);
     return () => clearInterval(interval);
-  }, [step, cashConfirmed, restaurantIdParam, cartId, restaurantIdParam]);
+  }, [step, cashConfirmed, restaurantIdParam, cartId]);
 
   useEffect(() => {
     if (step.kind !== "done_bank" || bankConfirmed) return;
@@ -257,7 +300,9 @@ function CheckoutContent() {
           restaurantId: rid,
           phoneNumber: step.phone,
         });
-        const order = activeOrders.find((o) => o.orderId === step.result.orderId);
+        const order = activeOrders.find(
+          (o) => o.orderId === step.result.orderId,
+        );
 
         if (order && order.status >= 1) {
           setBankConfirmed(true);
@@ -268,16 +313,19 @@ function CheckoutContent() {
             window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
           }
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     };
     checkStatus();
     const interval = setInterval(checkStatus, 3000);
     return () => clearInterval(interval);
-  }, [step, bankConfirmed, restaurantIdParam]);
+  }, [step, bankConfirmed, restaurantIdParam, cartId]);
 
-  const backHref = restaurantSlug ? `/menu?restaurant=${encodeURIComponent(restaurantSlug)}` : "/";
+  const backHref = restaurantSlug
+    ? `/menu?restaurant=${encodeURIComponent(restaurantSlug)}`
+    : "/";
   const isLoading = step.kind === "loading";
-  const isDone = step.kind === "done_cash" || step.kind === "done_bank";
 
   /**
    * Gọi API update-item với newQuantity tuyệt đối.
@@ -296,7 +344,8 @@ function CheckoutContent() {
       }
     } catch (e: unknown) {
       const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ||
         (e as Error)?.message ||
         "Không thể cập nhật số lượng.";
       setUpdateCartError(msg);
@@ -304,6 +353,48 @@ function CheckoutContent() {
       setTimeout(() => setUpdateCartError(null), 4000);
     } finally {
       setUpdatingDishId(null);
+    }
+  }
+
+  async function handleAddRecommendation(dish: RecommendedDish) {
+    if (!cart || addingRecommendationDishId !== null) return;
+
+    const ridFromQuery = Number(restaurantIdParam);
+    const restaurantId =
+      Number.isFinite(ridFromQuery) && ridFromQuery > 0
+        ? ridFromQuery
+        : cart.restaurantId;
+
+    if (!Number.isFinite(restaurantId) || restaurantId <= 0) {
+      setRecommendationError("Không xác định được nhà hàng để thêm món.");
+      setTimeout(() => setRecommendationError(null), 4000);
+      return;
+    }
+
+    setAddingRecommendationDishId(dish.dishId);
+    setRecommendationError(null);
+
+    try {
+      const updated = await addToCart({
+        restaurantId,
+        dishId: dish.dishId,
+        quantity: 1,
+        cartId: cart.cartId,
+      });
+
+      setCart(updated);
+      saveCartCache(restaurantId, updated);
+      setUpdateCartError(null);
+    } catch (e: unknown) {
+      const msg =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ||
+        (e as Error)?.message ||
+        "Không thể thêm món gợi ý vào giỏ.";
+      setRecommendationError(msg);
+      setTimeout(() => setRecommendationError(null), 4000);
+    } finally {
+      setAddingRecommendationDishId(null);
     }
   }
 
@@ -333,10 +424,18 @@ function CheckoutContent() {
     try {
       let newStep: OrderStep;
       if (selectedMethod === "cash") {
-        const res = await checkoutCash({ cartId, phone: trimmed, appliedPromotionId: selectedPromotionId });
+        const res = await checkoutCash({
+          cartId,
+          phone: trimmed,
+          appliedPromotionId: selectedPromotionId,
+        });
         newStep = { kind: "done_cash", result: res };
       } else {
-        const res = await checkoutBankTransfer({ cartId, phone: trimmed, appliedPromotionId: selectedPromotionId });
+        const res = await checkoutBankTransfer({
+          cartId,
+          phone: trimmed,
+          appliedPromotionId: selectedPromotionId,
+        });
         newStep = { kind: "done_bank", result: res, phone: trimmed };
 
         // Lưu pending session để banner "Quay lại thanh toán" có thể hiện trên trang menu
@@ -355,11 +454,14 @@ function CheckoutContent() {
       setStep(newStep);
 
       if (SESSION_RESULT_KEY) {
-        window.localStorage.setItem(SESSION_RESULT_KEY, JSON.stringify({ step: newStep, savedAt: Date.now() }));
+        window.localStorage.setItem(
+          SESSION_RESULT_KEY,
+          JSON.stringify({ step: newStep, savedAt: Date.now() }),
+        );
       }
-      
-      // Ngay khi tạo đơn thành công (Dù chưa thanh toán), giỏ hàng cần dọn sạch 
-      // để nếu Back về Menu, nó không giữ số lượng cũ gây lỗi "hết hàng". 
+
+      // Ngay khi tạo đơn thành công (Dù chưa thanh toán), giỏ hàng cần dọn sạch
+      // để nếu Back về Menu, nó không giữ số lượng cũ gây lỗi "hết hàng".
       if (restaurantIdParam) {
         clearCartCache(restaurantIdParam, cartId);
       } else {
@@ -367,7 +469,8 @@ function CheckoutContent() {
       }
     } catch (e: unknown) {
       const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ||
         (e as Error)?.message ||
         "Đặt hàng thất bại. Vui lòng thử lại.";
       setStep({ kind: "error", method: selectedMethod, message: msg });
@@ -379,7 +482,9 @@ function CheckoutContent() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white p-6">
         <AlertCircle className="h-12 w-12 text-rose-400" />
-        <p className="text-center text-sm font-semibold text-slate-700">{cartError}</p>
+        <p className="text-center text-sm font-semibold text-slate-700">
+          {cartError}
+        </p>
         <button
           type="button"
           onClick={() => router.push(backHref)}
@@ -421,16 +526,22 @@ function CheckoutContent() {
             <SectionCard className="py-4">
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-slate-500">Số thứ tự</span>
-                <span className="text-3xl font-extrabold text-slate-900">#{r.orderCode}</span>
+                <span className="text-3xl font-extrabold text-slate-900">
+                  #{r.orderCode}
+                </span>
               </div>
               <div className="h-px bg-slate-100" />
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-slate-500">Tổng tiền</span>
-                <span className="text-base font-extrabold text-emerald-600">{formatVND(r.totalAmount)}</span>
+                <span className="text-base font-extrabold text-emerald-600">
+                  {formatVND(r.totalAmount)}
+                </span>
               </div>
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-slate-500">SĐT</span>
-                <span className="text-sm font-semibold text-slate-800">{r.phone}</span>
+                <span className="text-sm font-semibold text-slate-800">
+                  {r.phone}
+                </span>
               </div>
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-slate-500">Trạng thái</span>
@@ -456,7 +567,10 @@ function CheckoutContent() {
 
             <button
               type="button"
-              onClick={() => { clearOrderData(); router.push(backHref); }}
+              onClick={() => {
+                clearOrderData();
+                router.push(backHref);
+              }}
               className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
             >
               Quay về menu
@@ -495,16 +609,22 @@ function CheckoutContent() {
           <SectionCard className="py-4">
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-500">Số thứ tự</span>
-              <span className="text-3xl font-extrabold text-slate-900">#{r.orderCode}</span>
+              <span className="text-3xl font-extrabold text-slate-900">
+                #{r.orderCode}
+              </span>
             </div>
             <div className="h-px bg-slate-100" />
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-500">Tổng tiền cần trả</span>
-              <span className="text-base font-extrabold text-amber-600">{formatVND(r.totalAmount)}</span>
+              <span className="text-base font-extrabold text-amber-600">
+                {formatVND(r.totalAmount)}
+              </span>
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-500">SĐT</span>
-              <span className="text-sm font-semibold text-slate-800">{r.phone}</span>
+              <span className="text-sm font-semibold text-slate-800">
+                {r.phone}
+              </span>
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-500">Trạng thái</span>
@@ -517,7 +637,10 @@ function CheckoutContent() {
 
           <button
             type="button"
-            onClick={() => { clearOrderData(); router.push(backHref); }}
+            onClick={() => {
+              clearOrderData();
+              router.push(backHref);
+            }}
             className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
           >
             Quay về menu
@@ -543,7 +666,9 @@ function CheckoutContent() {
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
                 <div>
-                  <p className="text-sm font-extrabold text-emerald-900">Thanh toán đã được xác nhận</p>
+                  <p className="text-sm font-extrabold text-emerald-900">
+                    Thanh toán đã được xác nhận
+                  </p>
                   <p className="mt-1 text-xs leading-relaxed text-emerald-700">
                     Đơn hàng đã được gửi xuống bếp để chế biến.
                   </p>
@@ -554,11 +679,15 @@ function CheckoutContent() {
             <SectionCard className="py-4">
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-slate-500">Tổng tiền</span>
-                <span className="text-base font-extrabold text-emerald-600">{formatVND(r.totalAmount)}</span>
+                <span className="text-base font-extrabold text-emerald-600">
+                  {formatVND(r.totalAmount)}
+                </span>
               </div>
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-slate-500">SĐT</span>
-                <span className="text-sm font-semibold text-slate-800">{step.phone}</span>
+                <span className="text-sm font-semibold text-slate-800">
+                  {step.phone}
+                </span>
               </div>
               <div className="flex items-center justify-between py-2">
                 <span className="text-sm text-slate-500">Trạng thái</span>
@@ -584,7 +713,10 @@ function CheckoutContent() {
 
             <button
               type="button"
-              onClick={() => { clearOrderData(); router.push(backHref); }}
+              onClick={() => {
+                clearOrderData();
+                router.push(backHref);
+              }}
               className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
             >
               Quay về menu
@@ -621,7 +753,9 @@ function CheckoutContent() {
           <SectionCard className="py-4">
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-500">Số tiền</span>
-              <span className="text-base font-extrabold text-blue-600">{formatVND(r.totalAmount)}</span>
+              <span className="text-base font-extrabold text-blue-600">
+                {formatVND(r.totalAmount)}
+              </span>
             </div>
             <div className="h-px bg-slate-100" />
             <div className="flex items-center justify-between py-2">
@@ -641,7 +775,10 @@ function CheckoutContent() {
 
           <button
             type="button"
-            onClick={() => { clearOrderData(); router.push(backHref); }}
+            onClick={() => {
+              clearOrderData();
+              router.push(backHref);
+            }}
             className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
           >
             Quay về menu
@@ -661,9 +798,13 @@ function CheckoutContent() {
   }
 
   /* ── Form screen ── */
-  const selectedPromo = promotions.find(p => p.id === selectedPromotionId);
+  const selectedPromo = promotions.find((p) => p.id === selectedPromotionId);
+  const recommendations = cart.recommendations ?? [];
   const discountAmount = selectedPromo?.discountAmount ?? 0;
-  const finalAmountCalculated = Math.max(0, (cart?.totalAmount ?? 0) - discountAmount);
+  const finalAmountCalculated = Math.max(
+    0,
+    (cart?.totalAmount ?? 0) - discountAmount,
+  );
   const finalAmountRounded = Math.round(finalAmountCalculated / 1000) * 1000;
 
   return (
@@ -678,7 +819,9 @@ function CheckoutContent() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex-1">
-          <p className="text-base font-extrabold text-slate-900">Xác nhận đơn hàng</p>
+          <p className="text-base font-extrabold text-slate-900">
+            Xác nhận đơn hàng
+          </p>
         </div>
         <ShoppingBag className="h-5 w-5 text-orange-400" />
       </header>
@@ -689,7 +832,9 @@ function CheckoutContent() {
           <div className="flex items-center justify-between py-3">
             <div className="flex items-center gap-2">
               <ReceiptText className="h-4 w-4 text-orange-500" />
-              <p className="text-sm font-extrabold text-slate-800">Đơn hàng của bạn</p>
+              <p className="text-sm font-extrabold text-slate-800">
+                Đơn hàng của bạn
+              </p>
             </div>
             <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-800">
               {cart.items.length} món
@@ -701,8 +846,12 @@ function CheckoutContent() {
                 key={item.dishId}
                 item={item}
                 updating={updatingDishId === item.dishId}
-                onIncrease={() => handleUpdateQty(item.dishId, item.quantity + 1)}
-                onDecrease={() => handleUpdateQty(item.dishId, item.quantity - 1)}
+                onIncrease={() =>
+                  handleUpdateQty(item.dishId, item.quantity + 1)
+                }
+                onDecrease={() =>
+                  handleUpdateQty(item.dishId, item.quantity - 1)
+                }
               />
             ))}
           </div>
@@ -715,16 +864,129 @@ function CheckoutContent() {
           <div className="h-px bg-slate-100" />
           <div className="flex items-center justify-between py-3">
             <p className="text-sm font-semibold text-slate-600">Tổng cộng</p>
-            <p className="text-lg font-extrabold text-orange-600">{formatVND(cart.totalAmount)}</p>
+            <p className="text-lg font-extrabold text-orange-600">
+              {formatVND(cart.totalAmount)}
+            </p>
           </div>
         </SectionCard>
+
+        {recommendations.length > 0 && (
+          <SectionCard className="py-3">
+            <div className="mb-3 flex items-center gap-2">
+              <Tag className="h-4 w-4 text-amber-500" />
+              <p className="text-sm font-extrabold text-slate-800">
+                Gợi ý cho bạn
+              </p>
+            </div>
+
+            {recommendationError && (
+              <div className="mb-2 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {recommendationError}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {recommendations.map((dish) => {
+                const hasDiscount =
+                  Number.isFinite(dish.discountedPrice) &&
+                  dish.discountedPrice > 0 &&
+                  dish.discountedPrice !== dish.price;
+                const finalPrice = hasDiscount
+                  ? dish.discountedPrice
+                  : dish.price;
+                const soldOut =
+                  Boolean(dish.isSoldOut) ||
+                  (typeof dish.dishAvailabilityStock === "number" &&
+                    dish.dishAvailabilityStock <= 0);
+
+                return (
+                  <div
+                    key={dish.dishId}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-100 bg-slate-100/50">
+                        <Utensils className="h-5 w-5 text-slate-300" />
+                        {dish.imageUrl ? (
+                          <img
+                            src={dish.imageUrl}
+                            alt={dish.dishName}
+                            className="absolute inset-0 h-full w-full object-cover"
+                            onError={(e) => {
+                              (
+                                e.currentTarget as HTMLImageElement
+                              ).style.display = "none";
+                            }}
+                          />
+                        ) : null}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-800">
+                          {dish.dishName}
+                        </p>
+                        {dish.description && (
+                          <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                            {dish.description}
+                          </p>
+                        )}
+                        {dish.type === 1 && dish.comboItems?.length > 0 && (
+                          <ul className="mt-1 space-y-0.5 text-[11px] text-slate-500">
+                            {dish.comboItems.map((combo, index) => (
+                              <li
+                                key={`${dish.dishId}-${combo.dishId}-${index}`}
+                              >
+                                x{combo.quantity} {combo.dishName}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        <div className="mt-1 flex items-center gap-2">
+                          <span className="text-sm font-bold text-orange-600">
+                            {formatVND(finalPrice)}
+                          </span>
+                          {hasDiscount && (
+                            <span className="text-[11px] text-slate-400 line-through">
+                              {formatVND(dish.price)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={
+                          soldOut || addingRecommendationDishId === dish.dishId
+                        }
+                        onClick={() => handleAddRecommendation(dish)}
+                        className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full bg-orange-500 px-3 text-xs font-bold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+                      >
+                        {addingRecommendationDishId === dish.dishId ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Plus className="h-3.5 w-3.5" />
+                        )}
+                        <span>{soldOut ? "Hết" : "Thêm"}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </SectionCard>
+        )}
 
         {/* Khuyến mãi - luôn hiển thị */}
         <SectionCard className="py-3">
           <div className="flex items-center gap-2 mb-3">
             <Ticket className="h-4 w-4 text-orange-500" />
-            <p className="text-sm font-extrabold text-slate-800">Khuyến mãi &amp; Ưu đãi</p>
-            {loadingPromotions && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+            <p className="text-sm font-extrabold text-slate-800">
+              Khuyến mãi &amp; Ưu đãi
+            </p>
+            {loadingPromotions && (
+              <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+            )}
           </div>
           <div className="flex flex-col gap-2">
             {!loadingPromotions && promotions.length === 0 && (
@@ -732,7 +994,7 @@ function CheckoutContent() {
                 Hiện không có khuyến mãi nào áp dụng cho đơn hàng này.
               </p>
             )}
-            {promotions.map(promo => {
+            {promotions.map((promo) => {
               const isSelected = selectedPromotionId === promo.id;
               let Icon = Tag;
               if (promo.type === 1) Icon = Clock;
@@ -740,14 +1002,17 @@ function CheckoutContent() {
               if (promo.type === 3) Icon = CalendarDays;
 
               let tagLabel = "";
-              if (promo.discountType === 0) tagLabel = `-${promo.discountValue}%`;
+              if (promo.discountType === 0)
+                tagLabel = `-${promo.discountValue}%`;
               else tagLabel = `-${formatVND(promo.discountValue)}`;
 
               return (
                 <label
                   key={promo.id}
                   className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 transition ${
-                    isSelected ? "border-orange-500 bg-orange-50/70" : "border-slate-100 bg-white hover:border-orange-200"
+                    isSelected
+                      ? "border-orange-500 bg-orange-50/70"
+                      : "border-slate-100 bg-white hover:border-orange-200"
                   }`}
                 >
                   <div className="flex h-5 items-center">
@@ -761,8 +1026,12 @@ function CheckoutContent() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center flex-wrap gap-1.5">
-                      <Icon className={`h-3.5 w-3.5 ${promo.type === 2 ? 'text-rose-500' : promo.type === 1 ? 'text-blue-500' : promo.type === 3 ? 'text-amber-500' : 'text-slate-500'}`} />
-                      <p className="text-sm font-bold text-slate-800 break-words">{promo.name}</p>
+                      <Icon
+                        className={`h-3.5 w-3.5 ${promo.type === 2 ? "text-rose-500" : promo.type === 1 ? "text-blue-500" : promo.type === 3 ? "text-amber-500" : "text-slate-500"}`}
+                      />
+                      <p className="text-sm font-bold text-slate-800 break-words">
+                        {promo.name}
+                      </p>
                       <span className="shrink-0 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">
                         {tagLabel}
                       </span>
@@ -774,16 +1043,20 @@ function CheckoutContent() {
                     </div>
                     <p className="mt-1 text-xs text-slate-500 leading-relaxed">
                       Đơn từ {formatVND(promo.minOrderValue)}
-                      {promo.discountType === 0 && promo.maxDiscountValue ? ` • Tối đa ${formatVND(promo.maxDiscountValue)}` : ""}
+                      {promo.discountType === 0 && promo.maxDiscountValue
+                        ? ` • Tối đa ${formatVND(promo.maxDiscountValue)}`
+                        : ""}
                     </p>
                     {promo.endDate && (
                       <p className="mt-0.5 text-[11px] text-slate-400">
-                        HSD: {new Date(promo.endDate).toLocaleDateString("vi-VN")}
+                        HSD:{" "}
+                        {new Date(promo.endDate).toLocaleDateString("vi-VN")}
                       </p>
                     )}
                     {promo.type === 1 && promo.dailyEndTime && (
                       <p className="mt-0.5 text-[11px] text-slate-400">
-                        Hiệu lực {promo.dailyStartTime?.slice(0, 5)} - {promo.dailyEndTime?.slice(0, 5)}
+                        Hiệu lực {promo.dailyStartTime?.slice(0, 5)} -{" "}
+                        {promo.dailyEndTime?.slice(0, 5)}
                       </p>
                     )}
                   </div>
@@ -821,7 +1094,9 @@ function CheckoutContent() {
             disabled={isLoading}
           />
           {phoneError && (
-            <p className="mt-1.5 text-xs font-semibold text-rose-500">{phoneError}</p>
+            <p className="mt-1.5 text-xs font-semibold text-rose-500">
+              {phoneError}
+            </p>
           )}
         </SectionCard>
 
@@ -858,7 +1133,11 @@ function CheckoutContent() {
                     : "border-slate-200 bg-white hover:border-orange-200"
                 }`}
               >
-                <span className={selectedMethod === m.id ? "text-white" : "text-slate-500"}>
+                <span
+                  className={
+                    selectedMethod === m.id ? "text-white" : "text-slate-500"
+                  }
+                >
                   {m.icon}
                 </span>
                 <div className="flex-1">
@@ -871,7 +1150,9 @@ function CheckoutContent() {
                   </p>
                   <p
                     className={`text-xs ${
-                      selectedMethod === m.id ? "text-orange-100" : "text-slate-400"
+                      selectedMethod === m.id
+                        ? "text-orange-100"
+                        : "text-slate-400"
                     }`}
                   >
                     {m.desc}
@@ -906,12 +1187,18 @@ function CheckoutContent() {
             </div>
           )}
           <div className="mb-2 flex items-center justify-between px-1 text-sm">
-            <span className="font-semibold text-slate-600">Tổng thanh toán</span>
+            <span className="font-semibold text-slate-600">
+              Tổng thanh toán
+            </span>
             <div className="flex flex-col items-end">
               {selectedPromo && (
-                <span className="text-xs text-slate-400 line-through mb-0.5">{formatVND(cart.totalAmount)}</span>
+                <span className="text-xs text-slate-400 line-through mb-0.5">
+                  {formatVND(cart.totalAmount)}
+                </span>
               )}
-              <span className="font-extrabold text-orange-600 text-lg leading-none">{formatVND(finalAmountRounded)}</span>
+              <span className="font-extrabold text-orange-600 text-lg leading-none">
+                {formatVND(finalAmountRounded)}
+              </span>
             </div>
           </div>
           <button

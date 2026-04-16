@@ -29,11 +29,38 @@ export type CartItem = {
   subTotal: number;
 };
 
+export type ComboRecommendationItem = {
+  dishId: number;
+  dishName: string;
+  imageUrl?: string | null;
+  quantity: number;
+};
+
+export type RecommendedDish = {
+  dishId: number;
+  dishName: string;
+  description: string;
+  imageUrl: string;
+  price: number;
+  isSoldOut: boolean;
+  isSelling: boolean;
+  discountedPrice: number;
+  promotionName: string | null;
+  promotionLabel: string | null;
+  expiredAt: string;
+  promoType: number;
+  type: number;
+  dishAvailabilityStock: number;
+  hasPromotion: boolean;
+  comboItems: ComboRecommendationItem[];
+};
+
 export type CartResponse = {
   cartId: string;
   restaurantId: number;
   totalAmount: number;
   items: CartItem[];
+  recommendations: RecommendedDish[];
 };
 
 export const CART_TTL_MS = 60 * 60 * 1000; // 60 phút (đồng bộ TTL Redis)
@@ -52,24 +79,39 @@ type CartCachePayload =
     }
   | CartResponse; // legacy format
 
-export function saveCartCache(restaurantId: number | string, cart: CartResponse) {
+export function saveCartCache(
+  restaurantId: number | string,
+  cart: CartResponse,
+) {
   if (typeof window === "undefined") return;
   const payload: CartCachePayload = { v: 1, savedAt: Date.now(), cart };
   window.localStorage.setItem(CART_ID_STORAGE_KEY(restaurantId), cart.cartId);
-  window.localStorage.setItem(CART_DATA_STORAGE_KEY(cart.cartId), JSON.stringify(payload));
+  window.localStorage.setItem(
+    CART_DATA_STORAGE_KEY(cart.cartId),
+    JSON.stringify(payload),
+  );
 }
 
-export function loadCartCache(restaurantId: number | string): CartResponse | null {
+export function loadCartCache(
+  restaurantId: number | string,
+): CartResponse | null {
   if (typeof window === "undefined") return null;
   try {
-    const cartId = window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId));
+    const cartId = window.localStorage.getItem(
+      CART_ID_STORAGE_KEY(restaurantId),
+    );
     if (!cartId) return null;
     const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CartCachePayload;
 
     // New format with TTL
-    if (parsed && typeof parsed === "object" && "v" in parsed && (parsed as { v?: unknown }).v === 1) {
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "v" in parsed &&
+      (parsed as { v?: unknown }).v === 1
+    ) {
       const p = parsed as Extract<CartCachePayload, { v: 1 }>;
       const elapsed = Date.now() - (p.savedAt ?? 0);
       if (elapsed >= CART_TTL_MS) {
@@ -89,9 +131,13 @@ export function loadCartCache(restaurantId: number | string): CartResponse | nul
   }
 }
 
-export function clearCartCache(restaurantId: number | string, cartId?: string | null) {
+export function clearCartCache(
+  restaurantId: number | string,
+  cartId?: string | null,
+) {
   if (typeof window === "undefined") return;
-  const existingId = cartId ?? window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId));
+  const existingId =
+    cartId ?? window.localStorage.getItem(CART_ID_STORAGE_KEY(restaurantId));
   if (existingId) {
     window.localStorage.removeItem(CART_DATA_STORAGE_KEY(existingId));
   }
@@ -104,7 +150,12 @@ export function loadCartByCartId(cartId: string): CartResponse | null {
     const raw = window.localStorage.getItem(CART_DATA_STORAGE_KEY(cartId));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CartCachePayload;
-    if (parsed && typeof parsed === "object" && "v" in parsed && (parsed as { v?: unknown }).v === 1) {
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      "v" in parsed &&
+      (parsed as { v?: unknown }).v === 1
+    ) {
       const p = parsed as Extract<CartCachePayload, { v: 1 }>;
       const elapsed = Date.now() - (p.savedAt ?? 0);
       if (elapsed >= CART_TTL_MS) {
@@ -144,7 +195,9 @@ export type PendingBankTransferSession = {
 
 export const PENDING_BANK_TRANSFER_KEY = "s2o_pending_bank_transfer";
 
-export function savePendingBankTransfer(session: Omit<PendingBankTransferSession, "savedAt">) {
+export function savePendingBankTransfer(
+  session: Omit<PendingBankTransferSession, "savedAt">,
+) {
   if (typeof window === "undefined") return;
   const data: PendingBankTransferSession = { ...session, savedAt: Date.now() };
   window.localStorage.setItem(PENDING_BANK_TRANSFER_KEY, JSON.stringify(data));
@@ -176,7 +229,7 @@ export async function addToCart(req: AddToCartRequest): Promise<CartResponse> {
   const { data } = await api.post<ApiResponse<CartResponse>>(
     API.ORDER.ADD_TO_CART,
     req,
-    { _skipAuth: true } as unknown as Record<string, unknown>
+    { _skipAuth: true } as unknown as Record<string, unknown>,
   );
   if (!data.isSuccess) {
     throw new Error(data.message || "Không thể thêm vào giỏ hàng.");
@@ -196,19 +249,19 @@ export type UpdateCartItemRequest = {
  * - newQuantity > 0  → set số lượng tuyệt đối (absolute value)
  * - Trả về toàn bộ CartResponse đã được sync lại từ backend
  */
-export async function updateCartItem(req: UpdateCartItemRequest): Promise<CartResponse> {
+export async function updateCartItem(
+  req: UpdateCartItemRequest,
+): Promise<CartResponse> {
   const { data } = await api.put<ApiResponse<CartResponse>>(
     API.ORDER.UPDATE_CART_ITEM,
     req,
-    { _skipAuth: true } as unknown as Record<string, unknown>
+    { _skipAuth: true } as unknown as Record<string, unknown>,
   );
   if (!data.isSuccess) {
     throw new Error(data.message || "Không thể cập nhật giỏ hàng.");
   }
   return data.data;
 }
-
-
 
 export type CheckoutRequest = {
   cartId: string;
@@ -235,11 +288,13 @@ export type CheckoutBankTransferResponse = {
   qrCodeBase64: string | null;
 };
 
-export async function checkoutCash(req: CheckoutRequest): Promise<CheckoutCashResponse> {
+export async function checkoutCash(
+  req: CheckoutRequest,
+): Promise<CheckoutCashResponse> {
   const { data } = await api.post<ApiResponse<CheckoutCashResponse>>(
     API.ORDER.CHECKOUT_CASH,
     req,
-    { _skipAuth: true } as unknown as Record<string, unknown>
+    { _skipAuth: true } as unknown as Record<string, unknown>,
   );
   if (!data.isSuccess) {
     throw new Error(data.message || "Thanh toán thất bại.");
@@ -247,11 +302,13 @@ export async function checkoutCash(req: CheckoutRequest): Promise<CheckoutCashRe
   return data.data;
 }
 
-export async function checkoutBankTransfer(req: CheckoutRequest): Promise<CheckoutBankTransferResponse> {
+export async function checkoutBankTransfer(
+  req: CheckoutRequest,
+): Promise<CheckoutBankTransferResponse> {
   const { data } = await api.post<ApiResponse<CheckoutBankTransferResponse>>(
     API.ORDER.CHECKOUT_BANK_TRANSFER,
     req,
-    { _skipAuth: true } as unknown as Record<string, unknown>
+    { _skipAuth: true } as unknown as Record<string, unknown>,
   );
   if (!data.isSuccess) {
     throw new Error(data.message || "Thanh toán thất bại.");
@@ -290,15 +347,17 @@ export async function getAvailablePromotions(req: {
     const { data } = await api.post<ApiResponse<PromotionResponse[]>>(
       API.ORDER.AVAILABLE_PROMOTIONS,
       req,
-      { _skipAuth: true } as unknown as Record<string, unknown>
+      { _skipAuth: true } as unknown as Record<string, unknown>,
     );
     if (data.isSuccess) {
       return Array.isArray(data.data) ? data.data : [];
     }
-  } catch (err) {
-    console.warn("API available-promotions failed, using mock data for UI testing.");
+  } catch {
+    console.warn(
+      "API available-promotions failed, using mock data for UI testing.",
+    );
   }
-  
+
   // MOCK DATA FALLBACK IF API FAILS (Backend hasn't implemented it yet)
   return [
     {
@@ -321,7 +380,7 @@ export async function getAvailablePromotions(req: {
       dishIds: null,
       isActive: true,
       discountAmount: 50000,
-      isRecommended: true
+      isRecommended: true,
     },
     {
       id: 3,
@@ -343,7 +402,7 @@ export async function getAvailablePromotions(req: {
       dishIds: null,
       isActive: true,
       discountAmount: 11400, // 15% of 76k
-      isRecommended: false
+      isRecommended: false,
     },
     {
       id: 1,
@@ -365,8 +424,8 @@ export async function getAvailablePromotions(req: {
       dishIds: null,
       isActive: true,
       discountAmount: 20000,
-      isRecommended: false
-    }
+      isRecommended: false,
+    },
   ];
 }
 
@@ -428,7 +487,7 @@ export async function getCustomerActiveOrders(params: {
         phone,
       },
       _skipAuth: true,
-    } as unknown as Record<string, unknown>
+    } as unknown as Record<string, unknown>,
   );
 
   return Array.isArray(data.data) ? data.data : [];
@@ -448,7 +507,7 @@ export type AllRestaurantOrderSummary = CustomerOrderSummary & {
 };
 
 export async function getCustomerActiveOrdersAllRestaurants(
-  phoneNumber: string
+  phoneNumber: string,
 ): Promise<AllRestaurantOrderSummary[]> {
   const phone = phoneNumber.trim();
   const { data } = await api.get<ApiResponse<AllRestaurantOrderSummary[]>>(
@@ -456,7 +515,7 @@ export async function getCustomerActiveOrdersAllRestaurants(
     {
       params: { phone },
       _skipAuth: true,
-    } as unknown as Record<string, unknown>
+    } as unknown as Record<string, unknown>,
   );
 
   return Array.isArray(data.data) ? data.data : [];
