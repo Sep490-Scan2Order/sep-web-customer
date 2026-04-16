@@ -54,7 +54,6 @@ export interface MenuRestaurantTemplateResponseData {
   isDeleted: boolean;
 }
 
-
 export interface MenuTemplate {
   id: number;
   templateName: string;
@@ -113,6 +112,16 @@ export interface GroupedMenuDish {
   imageUrl: string;
   price: number;
   isSoldOut: boolean;
+  type?: number | null;
+  comboItems?: ComboDishItem[];
+  comboDetails?: ComboDishItem[];
+}
+
+export interface ComboDishItem {
+  dishId: number;
+  dishName: string;
+  imageUrl: string | null;
+  quantity: number;
 }
 
 export interface GroupedMenuCategory {
@@ -219,6 +228,9 @@ export interface MenuDishItem {
   categoryId: string;
   imageUrl?: string;
   isSoldOut?: boolean;
+  type?: number | null;
+  comboItems?: ComboDishItem[];
+  comboDetails?: ComboDishItem[];
 }
 
 export interface RestaurantMenuSection {

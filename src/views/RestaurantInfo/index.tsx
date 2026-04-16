@@ -2,7 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Info, MapPin, Minus, Plus, ShoppingCart, Tags, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Info,
+  MapPin,
+  Minus,
+  Plus,
+  ShoppingCart,
+  Tags,
+  X,
+} from "lucide-react";
 import { MainLayout } from "@/components/ui/common";
 import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
 import type { RestaurantMenuData, RestaurantSlugResponseData } from "@/types";
@@ -32,12 +41,12 @@ function buildDirectionsUrl(r: RestaurantSlugResponseData): string {
   ) {
     const dest = `${lat},${lng}`;
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-      dest
+      dest,
     )}`;
   }
   if (r.address?.trim()) {
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-      r.address.trim()
+      r.address.trim(),
     )}`;
   }
   return "https://www.google.com/maps";
@@ -48,13 +57,18 @@ export default function RestaurantInfoView({
 }: RestaurantInfoViewProps) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [coverSrc, setCoverSrc] = useState(
-    r.image || FALLBACK_RESTAURANT_IMAGE
+    r.image || FALLBACK_RESTAURANT_IMAGE,
   );
-  const [menuData, setMenuData] = useState<RestaurantMenuData>({ sections: [], ungroupedDishes: [] });
+  const [menuData, setMenuData] = useState<RestaurantMenuData>({
+    sections: [],
+    ungroupedDishes: [],
+  });
   const [isMenuLoading, setIsMenuLoading] = useState(false);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string | null>("all");
-  const [selectedDishes, setSelectedDishes] = useState<Record<string, number>>({});
+  const [selectedDishes, setSelectedDishes] = useState<Record<string, number>>(
+    {},
+  );
   const [cartData, setCartData] = useState<CartResponse | null>(null);
   const [cartLoading, setCartLoading] = useState(false);
   const [cartError, setCartError] = useState<string | null>(null);
@@ -92,12 +106,12 @@ export default function RestaurantInfoView({
 
   const activeSection = useMemo(
     () => menuData.sections.find((s) => s.id === activeCategory) ?? null,
-    [menuData.sections, activeCategory]
+    [menuData.sections, activeCategory],
   );
 
   const allDishes = useMemo(
     () => menuData.sections.flatMap((section) => section.dishes),
-    [menuData.sections]
+    [menuData.sections],
   );
 
   const visibleDishes = useMemo(() => {
@@ -107,7 +121,7 @@ export default function RestaurantInfoView({
 
   const totalSelectedItems = useMemo(
     () => Object.values(selectedDishes).reduce((sum, qty) => sum + qty, 0),
-    [selectedDishes]
+    [selectedDishes],
   );
 
   const hasSelectedDishes = totalSelectedItems > 0;
@@ -122,10 +136,11 @@ export default function RestaurantInfoView({
           typeof dish.discountedPrice === "number" &&
           dish.discountedPrice > 0 &&
           dish.discountedPrice !== dish.price;
-        const unitPrice = (useDiscount ? dish.discountedPrice : dish.price) ?? 0;
+        const unitPrice =
+          (useDiscount ? dish.discountedPrice : dish.price) ?? 0;
         return sum + unitPrice * qty;
       }, 0),
-    [selectedDishes, allDishes]
+    [selectedDishes, allDishes],
   );
 
   const distanceText =
@@ -143,7 +158,7 @@ export default function RestaurantInfoView({
   };
 
   const scheduleText = `Thứ 2 - Chủ nhật: ${formatTimeHHmm(
-    r.openTime
+    r.openTime,
   )} - ${formatTimeHHmm(r.closeTime)}`;
 
   const formatVND = (value: number) =>
@@ -244,7 +259,7 @@ export default function RestaurantInfoView({
           window.dispatchEvent(
             new CustomEvent("s2o-cart-updated", {
               detail: { restaurantId: String(r.id), cartId: lastCart.cartId },
-            })
+            }),
           );
         }
       }
@@ -458,8 +473,15 @@ export default function RestaurantInfoView({
                   const quantity = selectedDishes[dish.id] ?? 0;
                   const soldOut =
                     Boolean(dish.isSoldOut) ||
-                    (typeof dish.dishAvailabilityStock === "number" && dish.dishAvailabilityStock <= 0);
+                    (typeof dish.dishAvailabilityStock === "number" &&
+                      dish.dishAvailabilityStock <= 0);
                   const hasPromotion = Boolean(dish.hasPromotion);
+                  const comboItems =
+                    dish.type === 1
+                      ? dish.comboItems?.length
+                        ? dish.comboItems
+                        : (dish.comboDetails ?? [])
+                      : [];
                   const hasDiscountPrice =
                     hasPromotion &&
                     typeof dish.discountedPrice === "number" &&
@@ -483,7 +505,8 @@ export default function RestaurantInfoView({
                             alt={dish.name}
                             className="h-full w-full object-cover"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = "none";
+                              (e.target as HTMLImageElement).style.display =
+                                "none";
                             }}
                           />
                         ) : (
@@ -495,10 +518,16 @@ export default function RestaurantInfoView({
                         {hasPromotion && (
                           <div
                             className="absolute right-1 top-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
-                            style={{ backgroundColor: promotionTypeColor(dish.promoType) }}
+                            style={{
+                              backgroundColor: promotionTypeColor(
+                                dish.promoType,
+                              ),
+                            }}
                           >
                             <Tags className="h-3 w-3" />
-                            <span className="max-w-[6rem] truncate">{promotionTypeLabel(dish.promoType)}</span>
+                            <span className="max-w-[6rem] truncate">
+                              {promotionTypeLabel(dish.promoType)}
+                            </span>
                           </div>
                         )}
 
@@ -518,10 +547,14 @@ export default function RestaurantInfoView({
                             {hasPromotion && dish.promotionLabel && (
                               <span
                                 className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm"
-                                title={dish.promotionName || dish.promotionLabel}
+                                title={
+                                  dish.promotionName || dish.promotionLabel
+                                }
                               >
                                 <Tags className="h-3 w-3" />
-                                <span className="max-w-[9rem] truncate">{dish.promotionLabel}</span>
+                                <span className="max-w-[9rem] truncate">
+                                  {dish.promotionLabel}
+                                </span>
                               </span>
                             )}
                           </div>
@@ -531,6 +564,33 @@ export default function RestaurantInfoView({
                             </p>
                           ) : (
                             <div className="mt-1 min-h-[2.5rem] sm:min-h-[3rem]" />
+                          )}
+
+                          {dish.type === 1 && (
+                            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                                Combo gồm
+                              </p>
+                              {comboItems.length > 0 ? (
+                                <ul className="mt-1.5 space-y-1">
+                                  {comboItems.map((comboItem, index) => (
+                                    <li
+                                      key={`${dish.id}-${comboItem.dishId}-${index}`}
+                                      className="text-xs text-slate-600 sm:text-[13px]"
+                                    >
+                                      <span className="font-medium text-slate-700">
+                                        x{comboItem.quantity}
+                                      </span>{" "}
+                                      {comboItem.dishName}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="mt-1 text-xs text-slate-500 sm:text-[13px]">
+                                  Chưa có chi tiết combo.
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
 
@@ -551,7 +611,10 @@ export default function RestaurantInfoView({
                               </span>
                             )}
                             <span className="mt-0.5 text-[11px] text-slate-500">
-                              SL: {typeof dish.dishAvailabilityStock === "number" ? dish.dishAvailabilityStock : "--"}
+                              SL:{" "}
+                              {typeof dish.dishAvailabilityStock === "number"
+                                ? dish.dishAvailabilityStock
+                                : "--"}
                             </span>
                           </div>
 
@@ -565,7 +628,9 @@ export default function RestaurantInfoView({
                                 >
                                   <Minus className="h-3 w-3" />
                                 </button>
-                                <span className="mx-2 min-w-[1.5rem] text-center font-semibold">{quantity}</span>
+                                <span className="mx-2 min-w-[1.5rem] text-center font-semibold">
+                                  {quantity}
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => handleIncrementDish(dish.id)}
@@ -583,7 +648,9 @@ export default function RestaurantInfoView({
                                 className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:bg-slate-300 sm:px-4 sm:text-sm"
                               >
                                 <Plus className="h-3 w-3" />
-                                <span className="whitespace-nowrap">Thêm vào giỏ</span>
+                                <span className="whitespace-nowrap">
+                                  Thêm vào giỏ
+                                </span>
                               </button>
                             )}
                           </div>

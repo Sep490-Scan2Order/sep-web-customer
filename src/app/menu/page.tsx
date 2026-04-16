@@ -41,6 +41,19 @@ type DishDto = {
   dishAvailabilityStock: number | null;
   promoType?: number | null;
   expiredAt?: string | null;
+  type: number;
+  comboItems?: Array<{
+    dishId: number;
+    dishName: string;
+    imageUrl: string | null;
+    quantity: number;
+  }>;
+  comboDetails?: Array<{
+    dishId?: number;
+    dishName?: string;
+    imageUrl?: string | null;
+    quantity?: number;
+  }>;
 };
 
 type CategoryDto = {
@@ -93,7 +106,6 @@ type LayoutConfig = {
   canvas?: LayoutCanvasConfig;
   card?: LayoutCardConfig;
   themeColor?: string;
-
 };
 
 function formatVND(value: number): string {
@@ -134,6 +146,79 @@ function DishCard({
   } = dish;
 
   const soldOut = isSoldOut || !dishAvailabilityStock;
+  const dishType = Number((dish as { type?: unknown }).type);
+
+  const parseComboArray = (value: unknown): Array<Record<string, unknown>> => {
+    if (Array.isArray(value)) {
+      return value.filter(
+        (item): item is Record<string, unknown> =>
+          typeof item === "object" && item !== null,
+      );
+    }
+
+    if (typeof value === "string") {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (item): item is Record<string, unknown> =>
+              typeof item === "object" && item !== null,
+          );
+        }
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  };
+
+  const comboItems = useMemo(() => {
+    const source = dish as {
+      comboItems?: unknown;
+      comboDetails?: unknown;
+      comboItemDetails?: unknown;
+    };
+
+    const rawItems =
+      parseComboArray(source.comboItems).length > 0
+        ? parseComboArray(source.comboItems)
+        : parseComboArray(source.comboDetails).length > 0
+          ? parseComboArray(source.comboDetails)
+          : parseComboArray(source.comboItemDetails);
+
+    return rawItems
+      .map((item) => ({
+        dishId:
+          typeof item.dishId === "number" && Number.isFinite(item.dishId)
+            ? item.dishId
+            : typeof item.itemId === "number" && Number.isFinite(item.itemId)
+              ? item.itemId
+              : 0,
+        dishName:
+          typeof item.dishName === "string"
+            ? item.dishName
+            : typeof (item as { name?: unknown }).name === "string"
+              ? ((item as { name?: string }).name ?? "")
+              : typeof (item as { itemName?: unknown }).itemName === "string"
+                ? ((item as { itemName?: string }).itemName ?? "")
+                : "",
+        imageUrl: typeof item.imageUrl === "string" ? item.imageUrl : null,
+        quantity:
+          typeof item.quantity === "number" && item.quantity > 0
+            ? item.quantity
+            : typeof item.quantity === "string" && Number(item.quantity) > 0
+              ? Number(item.quantity)
+              : typeof (item as { qty?: unknown }).qty === "number" &&
+                  (item as { qty?: number }).qty! > 0
+                ? (item as { qty?: number }).qty!
+                : typeof (item as { qty?: unknown }).qty === "string" &&
+                    Number((item as { qty?: string }).qty) > 0
+                  ? Number((item as { qty?: string }).qty)
+                  : 1,
+      }))
+      .filter((item) => item.dishName.trim().length > 0);
+  }, [dish]);
 
   const displayPrice =
     hasPromotion && discountedPrice && discountedPrice > 0
@@ -142,7 +227,7 @@ function DishCard({
 
   return (
     <div
-      className={`relative flex h-[152px] gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md sm:h-[168px] sm:p-4 ${
+      className={`relative flex min-h-[152px] gap-3 overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:shadow-md sm:min-h-[168px] sm:p-4 ${
         soldOut ? "opacity-50 grayscale-[0.3]" : ""
       }`}
     >
@@ -163,12 +248,12 @@ function DishCard({
                 promoType === 0
                   ? "#3b82f6" // Khuyến mãi thường
                   : promoType === 1
-                  ? "#f97316" // Giờ vàng
-                  : promoType === 2
-                  ? "#ef4444" // Xả hàng
-                  : promoType === 3
-                  ? "#06b6d4" // Ưu đãi trong tuần
-                  : "#6b7280", 
+                    ? "#f97316" // Giờ vàng
+                    : promoType === 2
+                      ? "#ef4444" // Xả hàng
+                      : promoType === 3
+                        ? "#06b6d4" // Ưu đãi trong tuần
+                        : "#6b7280",
             }}
           >
             <Tags className="h-3 w-3" />
@@ -176,12 +261,12 @@ function DishCard({
               {promoType === 0
                 ? "Khuyến mãi"
                 : promoType === 1
-                ? "Giờ vàng"
-                : promoType === 2
-                ? "Xả hàng"
-                : promoType === 3
-                ? "Ưu đãi trong tuần"
-                : "Khuyến mãi"}
+                  ? "Giờ vàng"
+                  : promoType === 2
+                    ? "Xả hàng"
+                    : promoType === 3
+                      ? "Ưu đãi trong tuần"
+                      : "Khuyến mãi"}
             </span>
           </div>
         )}
@@ -218,6 +303,33 @@ function DishCard({
           {!description && (
             <div className="mt-1 min-h-[2.5rem] sm:min-h-[3rem]" />
           )}
+
+          {dishType === 1 && (
+            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                Combo gồm
+              </p>
+              {comboItems.length > 0 ? (
+                <ul className="mt-1.5 space-y-1">
+                  {comboItems.map((comboItem, index) => (
+                    <li
+                      key={`${dish.dishId}-${comboItem.dishId}-${index}`}
+                      className="text-xs text-slate-600 sm:text-[13px]"
+                    >
+                      <span className="font-medium text-slate-700">
+                        x{comboItem.quantity}
+                      </span>{" "}
+                      {comboItem.dishName}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500 sm:text-[13px]">
+                  Chưa có chi tiết combo.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-1.5 flex items-end justify-between gap-2">
@@ -245,11 +357,12 @@ function DishCard({
                 {formatVND(displayPrice)}
               </span>
             )}
-            {typeof dishAvailabilityStock === "number" && dishAvailabilityStock > 0 && (
-              <span className="mt-0.5 text-[11px] text-slate-500">
-                SL: {dishAvailabilityStock}
-              </span>
-            )}
+            {typeof dishAvailabilityStock === "number" &&
+              dishAvailabilityStock > 0 && (
+                <span className="mt-0.5 text-[11px] text-slate-500">
+                  SL: {dishAvailabilityStock}
+                </span>
+              )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -379,7 +492,13 @@ type ToastItem = {
   message: string;
 };
 
-function ToastContainer({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (id: number) => void }) {
+function ToastContainer({
+  toasts,
+  onRemove,
+}: {
+  toasts: ToastItem[];
+  onRemove: (id: number) => void;
+}) {
   if (toasts.length === 0) return null;
   return (
     <div className="fixed right-3 top-16 z-[60] flex flex-col gap-2 sm:right-4 sm:top-20">
@@ -400,7 +519,9 @@ function ToastContainer({ toasts, onRemove }: { toasts: ToastItem[]; onRemove: (
               <AlertTriangle className="h-4 w-4 text-amber-500" />
             )}
           </span>
-          <p className="flex-1 text-xs font-semibold leading-snug sm:text-sm">{t.message}</p>
+          <p className="flex-1 text-xs font-semibold leading-snug sm:text-sm">
+            {t.message}
+          </p>
           <button
             type="button"
             onClick={() => onRemove(t.id)}
@@ -457,10 +578,12 @@ function MenuContent() {
       setState({ status: "loading" });
       try {
         const infoRes = await fetch(
-          `${API_BASE_URL}${API.RESTAURANT.GET_BY_SLUG(restaurantParam)}`
+          `${API_BASE_URL}${API.RESTAURANT.GET_BY_SLUG(restaurantParam)}`,
         );
         if (!infoRes.ok) {
-          throw new Error(`Không lấy được thông tin nhà hàng (${infoRes.status}).`);
+          throw new Error(
+            `Không lấy được thông tin nhà hàng (${infoRes.status}).`,
+          );
         }
         const infoJson = await infoRes.json();
         const restaurantId: number | undefined = infoJson?.data?.id;
@@ -492,7 +615,7 @@ function MenuContent() {
           {
             cache: "no-store",
             headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-          }
+          },
         );
 
         if (!res.ok) {
@@ -503,8 +626,35 @@ function MenuContent() {
         const data: CategoryDto[] = Array.isArray(raw)
           ? (raw as unknown as CategoryDto[])
           : Array.isArray(raw?.data?.menuData)
-          ? raw.data!.menuData
-          : [];
+            ? raw.data!.menuData
+            : [];
+
+        if (process.env.NODE_ENV !== "production") {
+          const allDishesFromResponse = data.flatMap(
+            (category) => category.dishes,
+          );
+          const comboDishes = allDishesFromResponse.filter(
+            (dish) => Number(dish.type) === 1,
+          );
+
+          console.groupCollapsed(
+            `[Menu] restaurantId=${restaurantId} categories=${data.length} dishes=${allDishesFromResponse.length}`,
+          );
+          console.log("[Menu] raw response", raw);
+          console.log("[Menu] combo dishes", comboDishes);
+          comboDishes.forEach((dish) => {
+            console.log(`[Menu] combo dish ${dish.dishId} - ${dish.dishName}`, {
+              type: dish.type,
+              comboItems: dish.comboItems,
+              comboDetails: dish.comboDetails,
+              rawComboItems: (dish as { comboItems?: unknown }).comboItems,
+              rawComboDetails: (dish as { comboDetails?: unknown })
+                .comboDetails,
+            });
+          });
+          console.groupEnd();
+        }
+
         const layoutConfigJson = raw?.data?.layoutConfigJson ?? null;
         const rawThemeColor = raw?.data?.themeColor ?? null;
         const rawFontFamily = raw?.data?.fontFamily ?? null;
@@ -513,8 +663,10 @@ function MenuContent() {
             status: "success",
             data,
             layoutConfigJson,
-            themeColor: typeof rawThemeColor === "string" ? rawThemeColor : null,
-            fontFamily: typeof rawFontFamily === "string" ? rawFontFamily : null,
+            themeColor:
+              typeof rawThemeColor === "string" ? rawThemeColor : null,
+            fontFamily:
+              typeof rawFontFamily === "string" ? rawFontFamily : null,
           });
         }
       } catch (e: unknown) {
@@ -522,7 +674,8 @@ function MenuContent() {
           setState({
             status: "error",
             error:
-              (e as Error)?.message || "Không thể tải menu. Vui lòng thử lại sau ít phút.",
+              (e as Error)?.message ||
+              "Không thể tải menu. Vui lòng thử lại sau ít phút.",
           });
         }
       }
@@ -535,7 +688,10 @@ function MenuContent() {
     };
   }, [restaurantParam]);
 
-  const categories = state.status === "success" ? state.data : [];
+  const categories = useMemo(
+    () => (state.status === "success" ? state.data : []),
+    [state],
+  );
 
   const themeColor = useMemo(() => {
     if (state.status !== "success") return "#22c55e";
@@ -547,10 +703,7 @@ function MenuContent() {
       const parsed = state.layoutConfigJson
         ? (JSON.parse(state.layoutConfigJson) as LayoutConfig)
         : null;
-      fromLayout =
-        parsed?.themeColor ??
-        parsed?.card?.themeColor ??
-        null;
+      fromLayout = parsed?.themeColor ?? parsed?.card?.themeColor ?? null;
     } catch {
       fromLayout = null;
     }
@@ -585,13 +738,14 @@ function MenuContent() {
 
     return state.data
       .filter((cat) =>
-        activeCategoryId === null ? true : cat.categoryId === activeCategoryId
+        activeCategoryId === null ? true : cat.categoryId === activeCategoryId,
       )
       .map((cat) => ({
         ...cat,
         dishes: cat.dishes.filter((dish) => {
           if (!term) return true;
-          const haystack = `${dish.dishName} ${dish.description ?? ""}`.toLowerCase();
+          const haystack =
+            `${dish.dishName} ${dish.description ?? ""}`.toLowerCase();
           return haystack.includes(term);
         }),
       }))
@@ -620,12 +774,12 @@ function MenuContent() {
   // Tất cả món trong menu (để tra tên khi cần)
   const allDishes = useMemo(
     () => categories.flatMap((c) => c.dishes),
-    [categories]
+    [categories],
   );
 
   const totalSelectedItems = useMemo(
     () => Object.values(quantities).reduce((s, q) => s + q, 0),
-    [quantities]
+    [quantities],
   );
 
   const totalAmount = useMemo(
@@ -640,7 +794,7 @@ function MenuContent() {
             : dish.price;
         return sum + price * qty;
       }, 0),
-    [quantities, allDishes]
+    [quantities, allDishes],
   );
 
   function pushToast(type: ToastItem["type"], message: string) {
@@ -698,7 +852,11 @@ function MenuContent() {
           const dishId = parseInt(dishIdStr, 10);
           const responseItem = lastCart.items.find((i) => i.dishId === dishId);
           if (!responseItem) {
-            warnings.push({ dishName: info.dishName, sentQty: info.qty, actualQty: 0 });
+            warnings.push({
+              dishName: info.dishName,
+              sentQty: info.qty,
+              actualQty: 0,
+            });
           } else if (responseItem.quantity < info.qty) {
             warnings.push({
               dishName: info.dishName,
@@ -711,18 +869,24 @@ function MenuContent() {
         // Hiện toast cảnh báo tồn kho
         for (const w of warnings) {
           if (w.actualQty === 0) {
-            pushToast("warning", `"${w.dishName}" đã hết hàng, bị xóa khỏi giỏ.`);
+            pushToast(
+              "warning",
+              `"${w.dishName}" đã hết hàng, bị xóa khỏi giỏ.`,
+            );
           } else {
             pushToast(
               "warning",
-              `"${w.dishName}" chỉ còn ${w.actualQty} (bạn chọn ${w.sentQty}), đã điều chỉnh lại.`
+              `"${w.dishName}" chỉ còn ${w.actualQty} (bạn chọn ${w.sentQty}), đã điều chỉnh lại.`,
             );
           }
         }
 
         // Toast thành công nếu không có cảnh báo
         if (warnings.length === 0) {
-          pushToast("success", `Đã thêm ${Object.keys(sentMap).length} món vào giỏ hàng!`);
+          pushToast(
+            "success",
+            `Đã thêm ${Object.keys(sentMap).length} món vào giỏ hàng!`,
+          );
         }
 
         setCartData(lastCart);
@@ -733,8 +897,11 @@ function MenuContent() {
           saveCartCache(restaurantId, lastCart);
           window.dispatchEvent(
             new CustomEvent("s2o-cart-updated", {
-              detail: { restaurantId: String(restaurantId), cartId: lastCart.cartId },
-            })
+              detail: {
+                restaurantId: String(restaurantId),
+                cartId: lastCart.cartId,
+              },
+            }),
           );
         }
       }
@@ -766,7 +933,10 @@ function MenuContent() {
 
   const backgroundStyles: React.CSSProperties = (() => {
     const styles: React.CSSProperties = {};
-    if (canvasConfig.backgroundMode === "image" && canvasConfig.backgroundImageUrl) {
+    if (
+      canvasConfig.backgroundMode === "image" &&
+      canvasConfig.backgroundImageUrl
+    ) {
       styles.backgroundImage = `url('${canvasConfig.backgroundImageUrl}')`;
       styles.backgroundSize = "cover";
       styles.backgroundPosition = "center";
@@ -823,7 +993,9 @@ function MenuContent() {
                 const params = new URLSearchParams({
                   cartId: cartData.cartId,
                   restaurant: restaurantParam,
-                  ...(restaurantId ? { restaurantId: String(restaurantId) } : {}),
+                  ...(restaurantId
+                    ? { restaurantId: String(restaurantId) }
+                    : {}),
                 });
                 router.push(`/checkout?${params.toString()}`);
               }
@@ -837,15 +1009,19 @@ function MenuContent() {
             }}
           >
             <ShoppingCart className="h-4 w-4" />
-            {cartData && (() => {
-              const count = cartData.items.reduce((s, i) => s + i.quantity, 0);
-              if (count === 0) return null;
-              return (
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-extrabold text-white shadow">
-                  {count > 99 ? "99+" : count}
-                </span>
-              );
-            })()}
+            {cartData &&
+              (() => {
+                const count = cartData.items.reduce(
+                  (s, i) => s + i.quantity,
+                  0,
+                );
+                if (count === 0) return null;
+                return (
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-extrabold text-white shadow">
+                    {count > 99 ? "99+" : count}
+                  </span>
+                );
+              })()}
           </button>
         </div>
       </header>
@@ -932,7 +1108,9 @@ function MenuContent() {
         <div className="fixed bottom-0 left-0 right-0 z-40 shadow-2xl">
           <div
             className="px-3 py-3 font-sans sm:px-4"
-            style={{ background: `linear-gradient(to right, ${themeColor}, ${themeColor}cc)` }}
+            style={{
+              background: `linear-gradient(to right, ${themeColor}, ${themeColor}cc)`,
+            }}
           >
             <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -986,7 +1164,10 @@ function MenuContent() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {/* Banner quay lại thanh toán QR nếu có pending */}
-      <PendingPaymentBanner restaurantId={restaurantId ?? undefined} restaurantSlug={restaurantParam} />
+      <PendingPaymentBanner
+        restaurantId={restaurantId ?? undefined}
+        restaurantSlug={restaurantParam}
+      />
     </div>
   );
 }
