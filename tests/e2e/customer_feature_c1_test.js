@@ -30,17 +30,23 @@ Scenario("C1-TC05 customer can open restaurants listing", async ({ I }) => {
   I.see("Tất cả nhà hàng");
 });
 
-Scenario("C1-TC06 customer can open restaurants search result by keyword", async ({ I }) => {
-  I.amOnPage("/restaurants?keyword=com");
-  I.seeInCurrentUrl("/restaurants?keyword=com");
-  I.see("Kết quả tìm kiếm");
-});
+Scenario(
+  "C1-TC06 customer can open restaurants search result by keyword",
+  async ({ I }) => {
+    I.amOnPage("/restaurants?keyword=com");
+    I.seeInCurrentUrl("/restaurants?keyword=com");
+    I.see("Kết quả tìm kiếm");
+  },
+);
 
-Scenario("C1-TC07 customer can open global search page with keyword", async ({ I }) => {
-  I.amOnPage("/search?keyword=pho");
-  I.seeInCurrentUrl("/search?keyword=pho");
-  I.see("Kết quả tìm kiếm");
-});
+Scenario(
+  "C1-TC07 customer can open global search page with keyword",
+  async ({ I }) => {
+    I.amOnPage("/search?keyword=pho");
+    I.seeInCurrentUrl("/search?keyword=pho");
+    I.see("Kết quả tìm kiếm");
+  },
+);
 
 Scenario("C1-TC08 customer can open nearby restaurants page", async ({ I }) => {
   I.amOnPage("/nearby-restaurants");
