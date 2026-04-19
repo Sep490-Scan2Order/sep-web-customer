@@ -1042,6 +1042,19 @@ function CheckoutPreorderContent() {
                 </div>
               </SectionCard>
 
+              {orderResult.qrCodeBase64 && (
+                <SectionCard className="flex flex-col items-center gap-2 border border-slate-100 py-4 shadow-sm">
+                  <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                    Đưa mã này cho nhân viên quầy khi nhận món
+                  </p>
+                  <img
+                    src={orderResult.qrCodeBase64}
+                    alt="QR đơn hàng"
+                    className="h-44 w-44 rounded-xl border-2 border-emerald-200"
+                  />
+                </SectionCard>
+              )}
+
               <button
                 type="button"
                 onClick={() => router.push(backToMenuHref)}

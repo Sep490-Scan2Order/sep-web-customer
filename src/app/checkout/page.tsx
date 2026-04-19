@@ -555,7 +555,7 @@ function CheckoutContent() {
             {r.qrCodeBase64 && (
               <SectionCard className="flex flex-col items-center gap-2 py-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Đưa mã này cho nhân viên quầy
+                  Đưa mã này cho nhân viên quầy khi nhận món
                 </p>
                 <img
                   src={r.qrCodeBase64}
@@ -701,7 +701,7 @@ function CheckoutContent() {
             {r.qrCodeBase64 && (
               <SectionCard className="flex flex-col items-center gap-2 py-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                  Đưa mã này cho nhân viên quầy
+                  Đưa mã này cho nhân viên quầy khi nhận món
                 </p>
                 <img
                   src={r.qrCodeBase64}
