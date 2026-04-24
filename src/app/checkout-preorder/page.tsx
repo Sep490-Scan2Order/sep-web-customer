@@ -607,12 +607,6 @@ function CheckoutPreorderContent() {
           <>
             <div className="flex flex-1 flex-col gap-3 bg-gradient-to-b from-emerald-50/50 to-slate-50 py-4 pb-40 sm:px-2">
               <div className={contentColumnClass}>
-                {cartError && (
-                  <div className="mb-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
-                    <p className="text-sm text-rose-700">{cartError}</p>
-                  </div>
-                )}
 
                 {cart && (
                   <SectionCard>
@@ -936,6 +930,13 @@ function CheckoutPreorderContent() {
                         )}
                       </label>
                     </SectionCard>
+
+                    {cartError && (
+                      <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                        <p className="text-sm text-rose-700">{cartError}</p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
