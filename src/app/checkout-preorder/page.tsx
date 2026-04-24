@@ -565,13 +565,14 @@ function CheckoutPreorderContent() {
   );
 
   const backToMenuHref = useMemo(() => {
+    if (restaurantIdParam) {
+      return ROUTES.RESTAURANT(restaurantIdParam);
+    }
     const slug = restaurantSlug.trim();
     if (slug) {
-      const q = new URLSearchParams({ restaurant: slug });
-      if (restaurantIdParam) q.set("restaurantId", restaurantIdParam);
-      return `${ROUTES.MENU}?${q.toString()}`;
+      return ROUTES.RESTAURANT_SLUG(slug);
     }
-    return ROUTES.MENU;
+    return ROUTES.HOME;
   }, [restaurantSlug, restaurantIdParam]);
 
   const contentColumnClass =
