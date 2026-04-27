@@ -259,7 +259,8 @@ export default function OrderLookupView() {
 
   const connectionRef = useRef<HubConnection | null>(null);
   const startPromiseRef = useRef<Promise<void> | null>(null);
-  const visibleOrderIdsRef = useRef<string[]>([]);
+  const allOrderIdsRef = useRef<string[]>([]);
+  const joinedIdsRef = useRef<Set<string>>(new Set());
 
   const statusTabs = useMemo(() => [0, 1, 2, 3, 4, 5] as const, []);
   const hasRefundInList = useMemo(() => orders.some(isRefundLogEntry), [orders]);
@@ -285,9 +286,15 @@ export default function OrderLookupView() {
     return orders.filter((o) => o.status === s && !isRefundLogEntry(o));
   }, [orders, activeTabKey]);
 
+  /** Track ALL order IDs (not just visible) so SignalR receives updates for every order. */
+  const allOrderIds = useMemo(
+    () => orders.map((o) => o.orderId).filter(Boolean),
+    [orders],
+  );
+
   useEffect(() => {
-    visibleOrderIdsRef.current = visibleOrders.map((o) => o.orderId).filter(Boolean);
-  }, [visibleOrders]);
+    allOrderIdsRef.current = allOrderIds;
+  }, [allOrderIds]);
 
   // Note: UI giờ chỉ render theo selectedStatus, không còn grouped theo tab.
 
@@ -297,8 +304,8 @@ export default function OrderLookupView() {
   const backHref = restaurantSlug
     ? `/restaurants/${encodeURIComponent(restaurantSlug)}`
     : restaurantId
-    ? `/restaurant/${encodeURIComponent(restaurantId)}`
-    : "/";
+      ? `/restaurant/${encodeURIComponent(restaurantId)}`
+      : "/";
 
   useEffect(() => {
     let cancelled = false;
@@ -333,7 +340,7 @@ export default function OrderLookupView() {
     };
   }, [restaurantId, phoneNumber]);
 
-  // Trang tra cứu: làm mới định kỳ để bắt cập nhật trạng thái đơn.
+  // Trang tra cứu: làm mới định kỳ để bắt cập nhật trạng thái đơn
   useEffect(() => {
     if (!restaurantId || !phoneNumber) return;
 
@@ -348,7 +355,7 @@ export default function OrderLookupView() {
       }
     }
 
-    const interval = window.setInterval(poll, 60_000);
+    const interval = window.setInterval(poll, 30_000);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -371,12 +378,12 @@ export default function OrderLookupView() {
         const p: unknown =
           typeof payload === "string"
             ? (() => {
-                try {
-                  return JSON.parse(payload);
-                } catch {
-                  return null;
-                }
-              })()
+              try {
+                return JSON.parse(payload);
+              } catch {
+                return null;
+              }
+            })()
             : payload;
 
         const orderId =
@@ -392,11 +399,16 @@ export default function OrderLookupView() {
 
       async function joinAllFromRef() {
         if (conn.state !== "Connected") return;
-        const ids = visibleOrderIdsRef.current;
-        await Promise.all(ids.map((id) => conn.invoke("JoinOrderGroup", id).catch(() => undefined)));
+        const ids = allOrderIdsRef.current;
+        const newIds = ids.filter((id) => !joinedIdsRef.current.has(id));
+        if (newIds.length === 0) return;
+        await Promise.all(newIds.map((id) => conn.invoke("JoinOrderGroup", id).catch(() => undefined)));
+        newIds.forEach((id) => joinedIdsRef.current.add(id));
       }
 
       conn.onreconnected(() => {
+        // After reconnect, all groups are lost — rejoin everything.
+        joinedIdsRef.current.clear();
         joinAllFromRef();
       });
 
@@ -418,12 +430,14 @@ export default function OrderLookupView() {
       const conn = connectionRef.current;
       connectionRef.current = null;
       startPromiseRef.current = null;
+      joinedIdsRef.current.clear();
       if (conn) conn.stop().catch(() => undefined);
     };
   }, []);
 
+  /** Join SignalR groups whenever the order list changes (new orders appear). */
   useEffect(() => {
-    async function joinAllOnListChange() {
+    async function joinNewOrders() {
       const conn = connectionRef.current;
       if (!conn) return;
       if (startPromiseRef.current) {
@@ -434,12 +448,15 @@ export default function OrderLookupView() {
         }
       }
       if (conn.state !== "Connected") return;
-      const ids = visibleOrderIdsRef.current;
-      await Promise.all(ids.map((id) => conn.invoke("JoinOrderGroup", id).catch(() => undefined)));
+      const ids = allOrderIdsRef.current;
+      const newIds = ids.filter((id) => !joinedIdsRef.current.has(id));
+      if (newIds.length === 0) return;
+      await Promise.all(newIds.map((id) => conn.invoke("JoinOrderGroup", id).catch(() => undefined)));
+      newIds.forEach((id) => joinedIdsRef.current.add(id));
     }
 
-    joinAllOnListChange();
-  }, [visibleOrders.length]);
+    joinNewOrders();
+  }, [allOrderIds]);
 
   return (
     <MainLayout hideHeader hideFooter>
@@ -480,20 +497,18 @@ export default function OrderLookupView() {
                         key={s}
                         type="button"
                         onClick={() => setActiveTabKey(s)}
-                        className={`flex flex-shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition ${
-                          isActive
+                        className={`flex flex-shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition ${isActive
                             ? "bg-orange-500 text-white shadow-sm"
                             : "bg-transparent text-slate-600 hover:bg-white"
-                        }`}
+                          }`}
                       >
                         <span className="flex items-center gap-2 whitespace-nowrap">
                           <span className={`h-2.5 w-2.5 rounded-full ${sStyle.dot}`} />
                           <span className="whitespace-nowrap">{statusLabel(s)}</span>
                         </span>
                         <span
-                          className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-bold ${
-                            isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
-                          }`}
+                          className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-bold ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                            }`}
                         >
                           {count}
                         </span>
@@ -504,22 +519,20 @@ export default function OrderLookupView() {
                     <button
                       type="button"
                       onClick={() => setActiveTabKey("refund")}
-                      className={`flex flex-shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition ${
-                        activeTabKey === "refund"
+                      className={`flex flex-shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-bold transition ${activeTabKey === "refund"
                           ? "bg-orange-500 text-white shadow-sm"
                           : "bg-transparent text-slate-600 hover:bg-white"
-                      }`}
+                        }`}
                     >
                       <span className="flex items-center gap-2 whitespace-nowrap">
                         <span className="h-2.5 w-2.5 rounded-full bg-violet-500" />
                         <span className="whitespace-nowrap">Hoàn tiền</span>
                       </span>
                       <span
-                        className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-bold ${
-                          activeTabKey === "refund"
+                        className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-bold ${activeTabKey === "refund"
                             ? "bg-white/20 text-white"
                             : "bg-slate-100 text-slate-700"
-                        }`}
+                          }`}
                       >
                         {orders.filter(isRefundLogEntry).length}
                       </span>

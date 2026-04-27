@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { HubConnection, HubConnectionBuilder, LogLevel } from "@microsoft/signalr";
 import { X } from "lucide-react";
 import { OrderDetailLineList } from "@/components/orderLookup/OrderDetailLineList";
 import { QrCodeModal } from "@/components/ui/common/QrCodeModal";
@@ -14,6 +15,7 @@ import {
   orderDetailsSectionTitle,
   resolveParentOrderFromList,
 } from "@/utils/customerOrderLookupDisplay";
+import { getSignalRHubUrl } from "@/services/signalr";
 
 type CustomerOrder = AllRestaurantOrderSummary;
 
@@ -161,6 +163,10 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
   const [activeTabKey, setActiveTabKey] = useState<ActiveTabKey>(0);
   const [selectedQr, setSelectedQr] = useState<{ qrCodeUrl: string; orderCode: number } | null>(null);
 
+  const connectionRef = useRef<HubConnection | null>(null);
+  const startPromiseRef = useRef<Promise<void> | null>(null);
+  const joinedIdsRef = useRef<Set<string>>(new Set());
+
   const statusTabs = useMemo(() => [0, 1, 2, 3, 4, 5] as const, []);
 
   const restaurantIds = useMemo(() => {
@@ -254,6 +260,12 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  /** Track ALL order IDs for SignalR group joining. */
+  const allOrderIds = useMemo(
+    () => allOrders.map((o) => o.orderId).filter(Boolean),
+    [allOrders],
+  );
+
   useEffect(() => {
     if (!open || !lookupPhone) return;
     const phone = lookupPhone;
@@ -264,12 +276,114 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
         if (!cancelled) setAllOrders(data);
       } catch {}
     }
-    const id = window.setInterval(poll, 60_000);
+    const id = window.setInterval(poll, 30_000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
   }, [open, lookupPhone]);
+
+  /* ──────────── SignalR ──────────── */
+  useEffect(() => {
+    if (!open || !lookupPhone) return;
+
+    let stopped = false;
+
+    async function startConnection() {
+      if (connectionRef.current) return;
+      const hubUrl = getSignalRHubUrl();
+      const conn = new HubConnectionBuilder()
+        .withUrl(hubUrl)
+        .withAutomaticReconnect()
+        .configureLogging(
+          process.env.NODE_ENV === "development" ? LogLevel.Information : LogLevel.Warning,
+        )
+        .build();
+
+      conn.on("CustomerUpdateStatus", (payload: unknown) => {
+        const p: unknown =
+          typeof payload === "string"
+            ? (() => {
+                try {
+                  return JSON.parse(payload);
+                } catch {
+                  return null;
+                }
+              })()
+            : payload;
+
+        const orderId =
+          (p as { orderId?: string })?.orderId || (p as { OrderId?: string })?.OrderId;
+        const status =
+          (p as { status?: number })?.status ?? (p as { Status?: number })?.Status;
+
+        if (!orderId || typeof status !== "number") return;
+        setAllOrders((prev) =>
+          prev.map((o) => (o.orderId === orderId ? { ...o, status } : o)),
+        );
+      });
+
+      async function joinNewIds(ids: string[]) {
+        if (conn.state !== "Connected") return;
+        const newIds = ids.filter((id) => !joinedIdsRef.current.has(id));
+        if (newIds.length === 0) return;
+        await Promise.all(
+          newIds.map((id) => conn.invoke("JoinOrderGroup", id).catch(() => undefined)),
+        );
+        newIds.forEach((id) => joinedIdsRef.current.add(id));
+      }
+
+      conn.onreconnected(() => {
+        joinedIdsRef.current.clear();
+        joinNewIds(allOrders.map((o) => o.orderId).filter(Boolean));
+      });
+
+      connectionRef.current = conn;
+
+      try {
+        startPromiseRef.current = conn.start();
+        await startPromiseRef.current;
+        await joinNewIds(allOrders.map((o) => o.orderId).filter(Boolean));
+      } catch {
+        // ignore — polling still works as fallback
+      }
+    }
+
+    startConnection();
+    return () => {
+      if (stopped) return;
+      stopped = true;
+      const conn = connectionRef.current;
+      connectionRef.current = null;
+      startPromiseRef.current = null;
+      joinedIdsRef.current.clear();
+      if (conn) conn.stop().catch(() => undefined);
+    };
+  }, [open, lookupPhone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Join groups whenever new orders appear. */
+  useEffect(() => {
+    async function joinNewOrders() {
+      const conn = connectionRef.current;
+      if (!conn) return;
+      if (startPromiseRef.current) {
+        try {
+          await startPromiseRef.current;
+        } catch {
+          return;
+        }
+      }
+      if (conn.state !== "Connected") return;
+      const newIds = allOrderIds.filter((id) => !joinedIdsRef.current.has(id));
+      if (newIds.length === 0) return;
+      await Promise.all(
+        newIds.map((id) => conn.invoke("JoinOrderGroup", id).catch(() => undefined)),
+      );
+      newIds.forEach((id) => joinedIdsRef.current.add(id));
+    }
+
+    joinNewOrders();
+  }, [allOrderIds]);
 
   async function handleLookup(e: FormEvent) {
     e.preventDefault();
