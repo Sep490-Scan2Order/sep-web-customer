@@ -237,6 +237,23 @@ export async function addToCart(req: AddToCartRequest): Promise<CartResponse> {
   return data.data;
 }
 
+export async function getCartRecommendations(
+  cartId: string,
+): Promise<RecommendedDish[]> {
+  try {
+    const { data } = await api.get<ApiResponse<RecommendedDish[]>>(
+      `/Order/cart/${cartId}/recommendations`,
+      { _skipAuth: true } as unknown as Record<string, unknown>,
+    );
+    if (!data.isSuccess) {
+      return [];
+    }
+    return data.data || [];
+  } catch {
+    return [];
+  }
+}
+
 export type UpdateCartItemRequest = {
   cartId: string;
   dishId: number;

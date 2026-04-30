@@ -29,6 +29,7 @@ import {
   checkoutCash,
   getCustomerActiveOrders,
   getAvailablePromotions,
+  getCartRecommendations,
   updateCartItem,
   PENDING_BANK_TRANSFER_TTL_MS,
   CART_DATA_STORAGE_KEY,
@@ -170,6 +171,7 @@ function CheckoutContent() {
 
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [cartError, setCartError] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendedDish[]>([]);
 
   const [phone, setPhone] = useState("");
   const [phoneError, setPhoneError] = useState<string | null>(null);
@@ -259,6 +261,25 @@ function CheckoutContent() {
     };
     fetchPromotions();
   });
+
+  const fetchRecommendations = async () => {
+    if (!cartId) return;
+    try {
+      const data = await getCartRecommendations(cartId);
+      setRecommendations(data);
+    } catch (err) {
+      console.error("Failed to load recommendations", err);
+    }
+  };
+
+  const recommendationsFetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!cartId) return;
+    if (recommendationsFetchedRef.current) return;
+    recommendationsFetchedRef.current = true;
+    fetchRecommendations();
+  }, [cartId]);
 
   useEffect(() => {
     if (step.kind !== "done_cash" || cashConfirmed) return;
@@ -385,6 +406,9 @@ function CheckoutContent() {
       setCart(updated);
       saveCartCache(restaurantId, updated);
       setUpdateCartError(null);
+      
+      // Load món đề xuất mới
+      fetchRecommendations();
     } catch (e: unknown) {
       const msg =
         (e as { response?: { data?: { message?: string } } })?.response?.data
@@ -799,7 +823,6 @@ function CheckoutContent() {
 
   /* ── Form screen ── */
   const selectedPromo = promotions.find((p) => p.id === selectedPromotionId);
-  const recommendations = cart.recommendations ?? [];
   const discountAmount = selectedPromo?.discountAmount ?? 0;
   const finalAmountCalculated = Math.max(
     0,
