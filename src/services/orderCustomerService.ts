@@ -353,80 +353,10 @@ export async function getAvailablePromotions(req: {
       return Array.isArray(data.data) ? data.data : [];
     }
   } catch {
-    console.warn(
-      "API available-promotions failed, using mock data for UI testing.",
-    );
+    console.warn("API available-promotions failed.");
   }
 
-  // MOCK DATA FALLBACK IF API FAILS (Backend hasn't implemented it yet)
-  return [
-    {
-      id: 5,
-      name: "Xả hàng cuối tuần",
-      type: 2,
-      discountType: 0,
-      discountValue: 50000,
-      maxDiscountValue: null,
-      minOrderValue: 20000, // Lowered to 20k so it shows up for exactly 76k order cart from user screenshot
-      startDate: "2026-04-01T00:00:00",
-      endDate: "2026-04-07T23:59:59",
-      dailyStartTime: null,
-      dailyEndTime: null,
-      daysOfWeek: 0,
-      isGlobal: false,
-      priority: 100,
-      scope: 1,
-      restaurantIds: [req.restaurantId],
-      dishIds: null,
-      isActive: true,
-      discountAmount: 50000,
-      isRecommended: true,
-    },
-    {
-      id: 3,
-      name: "Happy Hour 6-8pm",
-      type: 1,
-      discountType: 1,
-      discountValue: 15,
-      maxDiscountValue: 30000,
-      minOrderValue: 50000, // Lowered to 50k
-      startDate: null,
-      endDate: null,
-      dailyStartTime: "18:00:00",
-      dailyEndTime: "20:00:00",
-      daysOfWeek: 0,
-      isGlobal: true,
-      priority: 80,
-      scope: 1,
-      restaurantIds: [],
-      dishIds: null,
-      isActive: true,
-      discountAmount: 11400, // 15% of 76k
-      isRecommended: false,
-    },
-    {
-      id: 1,
-      name: "Khuyến mãi khai trương",
-      type: 0,
-      discountType: 0,
-      discountValue: 20000,
-      maxDiscountValue: null,
-      minOrderValue: 50000,
-      startDate: "2026-03-01T00:00:00",
-      endDate: "2026-06-30T23:59:59",
-      dailyStartTime: null,
-      dailyEndTime: null,
-      daysOfWeek: 0,
-      isGlobal: false,
-      priority: 10,
-      scope: 1,
-      restaurantIds: [req.restaurantId],
-      dishIds: null,
-      isActive: true,
-      discountAmount: 20000,
-      isRecommended: false,
-    },
-  ];
+  return [];
 }
 
 export type CustomerOrderDetailDto = {
