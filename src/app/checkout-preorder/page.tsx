@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
@@ -30,6 +30,7 @@ import {
   checkoutBankTransfer,
   getCustomerActiveOrders,
   getAvailablePromotions,
+  getCartRecommendations,
   updateCartItem,
   PENDING_BANK_TRANSFER_TTL_MS,
   savePendingBankTransfer,
@@ -214,6 +215,7 @@ function CheckoutPreorderContent() {
 
   const [cart, setCart] = useState<CartResponse | null>(null);
   const [cartError, setCartError] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<RecommendedDish[]>([]);
   const [phone, setPhone] = useState("");
   const [pickupAt, setPickupAt] = useState(() => {
     const d = new Date(Date.now() + 30 * 60 * 1000);
@@ -327,12 +329,29 @@ function CheckoutPreorderContent() {
     };
   }, [cart, restaurantIdParam]);
 
+  const fetchRecommendations = async () => {
+    if (!cartId) return;
+    try {
+      const data = await getCartRecommendations(cartId);
+      setRecommendations(data);
+    } catch (err) {
+      console.error("Failed to load recommendations", err);
+    }
+  };
+
+  const recommendationsFetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (!cartId) return;
+    if (recommendationsFetchedRef.current) return;
+    recommendationsFetchedRef.current = true;
+    fetchRecommendations();
+  }, [cartId]);
+
   const totalItems = useMemo(
     () => cart?.items?.reduce((sum, item) => sum + item.quantity, 0) ?? 0,
     [cart],
   );
-
-  const recommendations = useMemo(() => cart?.recommendations ?? [], [cart]);
 
   useEffect(() => {
     if (!cart || !restaurantIdParam) return;
@@ -459,6 +478,9 @@ function CheckoutPreorderContent() {
       setCart(updated);
       saveCartCache(restaurantId, updated);
       setUpdateCartError(null);
+      
+      // Load món đề xuất mới
+      fetchRecommendations();
     } catch (e: unknown) {
       const msg =
         (e as { response?: { data?: { message?: string } } })?.response?.data
