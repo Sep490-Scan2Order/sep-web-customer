@@ -80,7 +80,11 @@ export default function RestaurantDetailView({
   const [selectedDishes, setSelectedDishes] = useState<Record<string, number>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [menuOpened] = useState(initialMenuOpened);
-  const [now, setNow] = useState<Date>(new Date());
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+  }, []);
   const [showOrderLookup, setShowOrderLookup] = useState(false);
   const [lookupPhone, setLookupPhone] = useState("");
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -219,9 +223,10 @@ export default function RestaurantDetailView({
   const scheduleText = `Thứ 2 - Chủ nhật: ${formatTimeHHmm(r.openTime)} - ${formatTimeHHmm(
     r.closeTime
   )}`;
-  const timeGreeting = getTimeBasedGreeting(now);
+  
+  const timeGreeting = now ? getTimeBasedGreeting(now) : "Xin chào";
   const greetingText = `${timeGreeting}, Khách hàng`;
-  const hour = now.getHours();
+  const hour = now ? now.getHours() : 12;
   const isDaytime = hour >= 6 && hour < 18;
 
   const handleViewMenu = () => {
