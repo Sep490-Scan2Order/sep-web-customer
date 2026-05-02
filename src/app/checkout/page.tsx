@@ -44,7 +44,6 @@ import {
   type CheckoutCashResponse,
   type PromotionResponse,
   type RecommendedDish,
-  CheckoutError,
 } from "@/services/orderCustomerService";
 import { toast } from "react-toastify";
 
@@ -494,15 +493,19 @@ function CheckoutContent() {
         window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
       }
     } catch (e: unknown) {
-      if (e instanceof CheckoutError && Array.isArray(e.errors)) {
-        const dishIdError = (e.errors as string[]).find((err) =>
-          typeof err === "string" && err.startsWith("failedDishId:")
+      const respData = (e as { response?: { data?: { message?: string; errors?: unknown } } })
+        ?.response?.data;
+      const errors = respData?.errors;
+
+      if (Array.isArray(errors)) {
+        const dishIdError = (errors as string[]).find(
+          (err) => typeof err === "string" && err.startsWith("failedDishId:")
         );
         if (dishIdError) {
           const failedDishId = parseInt(dishIdError.split(":")[1]);
           if (!isNaN(failedDishId)) {
-            toast.error(e.message || "Món trong giỏ đã hết hàng.");
-            handleUpdateQty(failedDishId, 0);
+            toast.error(respData?.message || "Món trong giỏ đã hết hàng.");
+            await handleUpdateQty(failedDishId, 0);
             setStep({ kind: "form" });
             return;
           }
@@ -510,8 +513,7 @@ function CheckoutContent() {
       }
 
       const msg =
-        (e as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ||
+        respData?.message ||
         (e as Error)?.message ||
         "Đặt hàng thất bại. Vui lòng thử lại.";
       setStep({ kind: "error", method: selectedMethod, message: msg });
