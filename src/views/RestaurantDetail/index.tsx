@@ -243,6 +243,7 @@ export default function RestaurantDetailView({
               <div className="flex items-center gap-2">
                 <Link
                   href={ROUTES.RESTAURANT_SLUG(r.slug)}
+                  prefetch={false}
                   className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-orange-200 bg-white text-orange-500 shadow-sm hover:bg-orange-50"
                   aria-label="Trang chủ"
                 >

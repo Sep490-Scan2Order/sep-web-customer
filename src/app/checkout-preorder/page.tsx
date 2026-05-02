@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
@@ -46,6 +46,7 @@ import {
 import { getRestaurantGroupedMenu } from "@/services/menuRestaurantTemplateService";
 import { toast } from "react-toastify";
 import type { RestaurantMenuData } from "@/types";
+import { useOrderStatusSignalR } from "@/hooks/useOrderStatusSignalR";
 
 function buildDishImageUrlById(
   menu: RestaurantMenuData,
@@ -376,53 +377,52 @@ function CheckoutPreorderContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantIdParam]); // Chỉ fetch 1 lần khi load trang, không re-fetch mỗi lần qty thay đổi
 
-  useEffect(() => {
-    if (!orderResult || bankConfirmed) return;
-    const rid = Number(restaurantIdParam);
-    if (!rid || !lookupPhone) return;
+  /* ── SignalR real-time + fallback polling for bank transfer confirmation ── */
+  const activeOrderId =
+    orderResult && !bankConfirmed ? orderResult.orderId : null;
 
-    let cancelled = false;
-    const checkStatus = async () => {
-      try {
-        const activeOrders = await getCustomerActiveOrders({
-          restaurantId: rid,
-          phoneNumber: lookupPhone,
-        });
-        const order = activeOrders.find(
-          (o) => o.orderId === orderResult.orderId,
-        );
-        if (!cancelled && order && order.status >= 1) {
-          setBankConfirmed(true);
-          clearPendingBankTransfer();
-          if (restaurantIdParam && cart?.cartId) {
-            clearCartCache(restaurantIdParam, cart.cartId);
-          } else if (cart?.cartId) {
-            window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
-          }
-          window.dispatchEvent(
-            new CustomEvent("s2o-cart-updated", {
-              detail: { restaurantId: restaurantIdParam, cartId: "" },
-            }),
-          );
-        }
-      } catch {
-        // ignore polling errors
+  const handleSignalRStatus = useCallback(
+    (newStatus: number) => {
+      if (newStatus < 1) return;
+      setBankConfirmed(true);
+      clearPendingBankTransfer();
+      if (restaurantIdParam && cart?.cartId) {
+        clearCartCache(restaurantIdParam, cart.cartId);
+      } else if (cart?.cartId) {
+        window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
       }
-    };
+      window.dispatchEvent(
+        new CustomEvent("s2o-cart-updated", {
+          detail: { restaurantId: restaurantIdParam, cartId: "" },
+        }),
+      );
+    },
+    [restaurantIdParam, cart?.cartId],
+  );
 
-    checkStatus();
-    const timer = window.setInterval(checkStatus, 3000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [
-    orderResult,
-    bankConfirmed,
-    restaurantIdParam,
-    lookupPhone,
-    cart?.cartId,
-  ]);
+  const fallbackPoll = useCallback(async (): Promise<number | null> => {
+    const rid = Number(restaurantIdParam);
+    if (!rid || !lookupPhone || !orderResult) return null;
+    try {
+      const activeOrders = await getCustomerActiveOrders({
+        restaurantId: rid,
+        phoneNumber: lookupPhone,
+      });
+      const order = activeOrders.find(
+        (o) => o.orderId === orderResult.orderId,
+      );
+      return order?.status ?? null;
+    } catch {
+      return null;
+    }
+  }, [restaurantIdParam, lookupPhone, orderResult]);
+
+  useOrderStatusSignalR(
+    activeOrderId,
+    handleSignalRStatus,
+    fallbackPoll,
+    10_000,
+  );
 
   async function handleUpdateQty(dishId: number, newQuantity: number) {
     if (!cart || updatingDishId !== null) return;

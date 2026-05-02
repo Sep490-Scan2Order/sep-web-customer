@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
@@ -45,11 +45,30 @@ import {
   type PromotionResponse,
   type RecommendedDish,
 } from "@/services/orderCustomerService";
+import { getRestaurantGroupedMenu } from "@/services/menuRestaurantTemplateService";
+import type { RestaurantMenuData } from "@/types";
 import { toast } from "react-toastify";
+import { useOrderStatusSignalR } from "@/hooks/useOrderStatusSignalR";
 
 /* ─── Helpers ─── */
 function formatVND(v: number) {
   return v.toLocaleString("vi-VN") + "đ";
+}
+
+function buildDishImageUrlById(
+  menu: RestaurantMenuData,
+): Record<number, string> {
+  const map: Record<number, string> = {};
+  const add = (dishId: string, url: string | null | undefined) => {
+    const id = Number(dishId);
+    const u = url?.trim();
+    if (Number.isFinite(id) && u) map[id] = u;
+  };
+  for (const s of menu.sections) {
+    for (const d of s.dishes) add(d.id, d.imageUrl);
+  }
+  for (const d of menu.ungroupedDishes) add(d.id, d.imageUrl);
+  return map;
 }
 
 /* ─── Types ─── */
@@ -65,6 +84,7 @@ type OrderStep =
 /* ─── Sub-components ─── */
 interface OrderItemRowProps {
   item: CartItem;
+  dishImageUrlById: Record<number, string>;
   updating: boolean;
   onIncrease: () => void;
   onDecrease: () => void;
@@ -72,22 +92,26 @@ interface OrderItemRowProps {
 
 function OrderItemRow({
   item,
+  dishImageUrlById,
   updating,
   onIncrease,
   onDecrease,
 }: OrderItemRowProps) {
+  const src = item.imageUrl?.trim() || dishImageUrlById[item.dishId]?.trim();
   return (
     <div className="flex items-center gap-3 py-3 w-full">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
-        {item.imageUrl ? (
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-100 bg-slate-100/50">
+        <Utensils className="h-5 w-5 text-slate-300" />
+        {src ? (
           <img
-            src={item.imageUrl}
+            src={src}
             alt={item.dishName}
-            className="h-full w-full object-cover"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = "none";
+            }}
           />
-        ) : (
-          <Utensils className="h-5 w-5 text-slate-300" />
-        )}
+        ) : null}
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-slate-800">
@@ -197,6 +221,11 @@ function CheckoutContent() {
   );
   const [loadingPromotions, setLoadingPromotions] = useState(false);
 
+  /** Ảnh món từ API menu — dùng khi cart item không có imageUrl */
+  const [dishImageUrlById, setDishImageUrlById] = useState<
+    Record<number, string>
+  >({});
+
   const SESSION_RESULT_KEY = cartId ? `s2o_order_result_${cartId}` : "";
 
   useEffect(() => {
@@ -236,6 +265,23 @@ function CheckoutContent() {
       setCartError("Không thể đọc dữ liệu giỏ hàng.");
     }
   }, [cartId, SESSION_RESULT_KEY]);
+
+  useEffect(() => {
+    const rid = Number(restaurantIdParam);
+    if (!cart || !Number.isFinite(rid) || rid <= 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const menu = await getRestaurantGroupedMenu(rid);
+        if (!cancelled) setDishImageUrlById(buildDishImageUrlById(menu));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cart, restaurantIdParam]);
 
   const promotionFetchedRef = useRef(false);
 
@@ -282,67 +328,79 @@ function CheckoutContent() {
     fetchRecommendations();
   }, [cartId]);
 
-  useEffect(() => {
-    if (step.kind !== "done_cash" || cashConfirmed) return;
-    const r = step.result;
-    const rid = Number(restaurantIdParam);
-    if (!rid || !r.phone) return;
-    const checkStatus = async () => {
-      try {
-        const activeOrders = await getCustomerActiveOrders({
-          restaurantId: rid,
-          phoneNumber: r.phone,
-        });
-        const order = activeOrders.find((o) => o.orderId === r.orderId);
+  /* ── Determine the active order ID for SignalR listening ── */
+  const activeOrderId: string | null = (() => {
+    if (step.kind === "done_cash" && !cashConfirmed) return step.result.orderId;
+    if (step.kind === "done_bank" && !bankConfirmed) return step.result.orderId;
+    return null;
+  })();
 
-        if (order && order.status >= 1) {
-          setCashConfirmed(true);
-          if (restaurantIdParam) {
-            clearCartCache(restaurantIdParam, cartId);
-          } else {
-            window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
-          }
+  /** Callback invoked by SignalR (or fallback poll) when the order status changes. */
+  const handleSignalRStatus = useCallback(
+    (newStatus: number) => {
+      if (newStatus < 1) return; // still Unpaid, nothing to do
+
+      if (step.kind === "done_cash" && !cashConfirmed) {
+        setCashConfirmed(true);
+        if (restaurantIdParam) {
+          clearCartCache(restaurantIdParam, cartId);
+        } else {
+          window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
         }
-      } catch {
-        /* ignore */
       }
-    };
-    checkStatus();
-    const interval = setInterval(checkStatus, 3000);
-    return () => clearInterval(interval);
-  }, [step, cashConfirmed, restaurantIdParam, cartId]);
 
-  useEffect(() => {
-    if (step.kind !== "done_bank" || bankConfirmed) return;
-    const rid = Number(restaurantIdParam);
-    if (!rid || !step.phone) return;
-    const checkStatus = async () => {
-      try {
-        const activeOrders = await getCustomerActiveOrders({
-          restaurantId: rid,
-          phoneNumber: step.phone,
-        });
-        const order = activeOrders.find(
-          (o) => o.orderId === step.result.orderId,
-        );
-
-        if (order && order.status >= 1) {
-          setBankConfirmed(true);
-          clearPendingBankTransfer();
-          if (restaurantIdParam) {
-            clearCartCache(restaurantIdParam, cartId);
-          } else {
-            window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
-          }
+      if (step.kind === "done_bank" && !bankConfirmed) {
+        setBankConfirmed(true);
+        clearPendingBankTransfer();
+        if (restaurantIdParam) {
+          clearCartCache(restaurantIdParam, cartId);
+        } else {
+          window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
         }
-      } catch {
-        /* ignore */
       }
-    };
-    checkStatus();
-    const interval = setInterval(checkStatus, 3000);
-    return () => clearInterval(interval);
-  }, [step, bankConfirmed, restaurantIdParam, cartId]);
+    },
+    [step, cashConfirmed, bankConfirmed, restaurantIdParam, cartId],
+  );
+
+  /** Fallback polling function — only called when SignalR is disconnected (10 s interval). */
+  const fallbackPoll = useCallback(async (): Promise<number | null> => {
+    const rid = Number(restaurantIdParam);
+    if (!rid) return null;
+
+    const phoneForPoll =
+      step.kind === "done_cash"
+        ? step.result.phone
+        : step.kind === "done_bank"
+          ? step.phone
+          : null;
+    const orderIdForPoll =
+      step.kind === "done_cash"
+        ? step.result.orderId
+        : step.kind === "done_bank"
+          ? step.result.orderId
+          : null;
+
+    if (!phoneForPoll || !orderIdForPoll) return null;
+
+    try {
+      const activeOrders = await getCustomerActiveOrders({
+        restaurantId: rid,
+        phoneNumber: phoneForPoll,
+      });
+      const order = activeOrders.find((o) => o.orderId === orderIdForPoll);
+      return order?.status ?? null;
+    } catch {
+      return null;
+    }
+  }, [step, restaurantIdParam]);
+
+  // 🔌 SignalR real-time + fallback polling (10 s when disconnected)
+  useOrderStatusSignalR(
+    activeOrderId,
+    handleSignalRStatus,
+    fallbackPoll,
+    10_000,
+  );
 
   const backHref = restaurantSlug
     ? `/menu?restaurant=${encodeURIComponent(restaurantSlug)}`
@@ -887,6 +945,7 @@ function CheckoutContent() {
               <OrderItemRow
                 key={item.dishId}
                 item={item}
+                dishImageUrlById={dishImageUrlById}
                 updating={updatingDishId === item.dishId}
                 onIncrease={() =>
                   handleUpdateQty(item.dishId, item.quantity + 1)
