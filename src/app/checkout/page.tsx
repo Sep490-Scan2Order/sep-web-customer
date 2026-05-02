@@ -44,7 +44,9 @@ import {
   type CheckoutCashResponse,
   type PromotionResponse,
   type RecommendedDish,
+  CheckoutError,
 } from "@/services/orderCustomerService";
+import { toast } from "react-toastify";
 
 /* ─── Helpers ─── */
 function formatVND(v: number) {
@@ -492,6 +494,21 @@ function CheckoutContent() {
         window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cartId));
       }
     } catch (e: unknown) {
+      if (e instanceof CheckoutError && Array.isArray(e.errors)) {
+        const dishIdError = (e.errors as string[]).find((err) =>
+          typeof err === "string" && err.startsWith("failedDishId:")
+        );
+        if (dishIdError) {
+          const failedDishId = parseInt(dishIdError.split(":")[1]);
+          if (!isNaN(failedDishId)) {
+            toast.error(e.message || "Món trong giỏ đã hết hàng.");
+            handleUpdateQty(failedDishId, 0);
+            setStep({ kind: "form" });
+            return;
+          }
+        }
+      }
+
       const msg =
         (e as { response?: { data?: { message?: string } } })?.response?.data
           ?.message ||

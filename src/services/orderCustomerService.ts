@@ -305,6 +305,15 @@ export type CheckoutBankTransferResponse = {
   qrCodeBase64: string | null;
 };
 
+export class CheckoutError extends Error {
+  public errors?: unknown;
+  constructor(message: string, errors?: unknown) {
+    super(message);
+    this.name = "CheckoutError";
+    this.errors = errors;
+  }
+}
+
 export async function checkoutCash(
   req: CheckoutRequest,
 ): Promise<CheckoutCashResponse> {
@@ -314,7 +323,7 @@ export async function checkoutCash(
     { _skipAuth: true } as unknown as Record<string, unknown>,
   );
   if (!data.isSuccess) {
-    throw new Error(data.message || "Thanh toán thất bại.");
+    throw new CheckoutError(data.message || "Thanh toán thất bại.", data.errors);
   }
   return data.data;
 }
@@ -328,7 +337,7 @@ export async function checkoutBankTransfer(
     { _skipAuth: true } as unknown as Record<string, unknown>,
   );
   if (!data.isSuccess) {
-    throw new Error(data.message || "Thanh toán thất bại.");
+    throw new CheckoutError(data.message || "Thanh toán thất bại.", data.errors);
   }
   return data.data;
 }

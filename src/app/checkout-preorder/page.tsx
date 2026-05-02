@@ -42,8 +42,10 @@ import {
   type CheckoutBankTransferResponse,
   type PromotionResponse,
   type RecommendedDish,
+  CheckoutError,
 } from "@/services/orderCustomerService";
 import { getRestaurantGroupedMenu } from "@/services/menuRestaurantTemplateService";
+import { toast } from "react-toastify";
 import type { RestaurantMenuData } from "@/types";
 
 function buildDishImageUrlById(
@@ -566,6 +568,20 @@ function CheckoutPreorderContent() {
         window.localStorage.removeItem(CART_DATA_STORAGE_KEY(cart.cartId));
       }
     } catch (e: unknown) {
+      if (e instanceof CheckoutError && Array.isArray(e.errors)) {
+        const dishIdError = (e.errors as string[]).find((err) =>
+          typeof err === "string" && err.startsWith("failedDishId:")
+        );
+        if (dishIdError) {
+          const failedDishId = parseInt(dishIdError.split(":")[1]);
+          if (!isNaN(failedDishId)) {
+            toast.error(e.message || "Món trong giỏ đã hết hàng.");
+            handleUpdateQty(failedDishId, 0);
+            return;
+          }
+        }
+      }
+
       const msg =
         (e as { response?: { data?: { message?: string } } })?.response?.data
           ?.message ||
