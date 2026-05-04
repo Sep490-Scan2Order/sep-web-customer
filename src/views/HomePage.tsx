@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronRight,
   Clock3,
@@ -57,7 +58,33 @@ const recommendedHours = [
 ] as const;
 
 export function HomePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [orderLookupOpen, setOrderLookupOpen] = useState(false);
+  const [initialLookupPhone, setInitialLookupPhone] = useState<string>("");
+
+  useEffect(() => {
+    const openLookup = (searchParams.get("orderLookup") ?? "").trim() === "1";
+    if (!openLookup) return;
+
+    try {
+      const phone = window.sessionStorage.getItem("s2o_lookup_phone_all")?.trim() ?? "";
+      setInitialLookupPhone(phone);
+    } catch {
+      setInitialLookupPhone("");
+    }
+    setOrderLookupOpen(true);
+
+    // Clean up URL (avoid keeping the flag in history)
+    try {
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("orderLookup");
+      const qs = next.toString();
+      router.replace(qs ? `${ROUTES.HOME}?${qs}` : ROUTES.HOME);
+    } catch {
+      // ignore
+    }
+  }, [router, searchParams]);
 
   return (
     <>
@@ -177,6 +204,8 @@ export function HomePage() {
       <AllRestaurantsOrderLookupDrawer
         open={orderLookupOpen}
         onClose={() => setOrderLookupOpen(false)}
+        initialPhone={initialLookupPhone}
+        autoLookup={Boolean(initialLookupPhone)}
       />
     </>
   );

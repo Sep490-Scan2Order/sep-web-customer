@@ -151,9 +151,21 @@ function isRenderableQrUrl(url?: string | null): boolean {
 export type AllRestaurantsOrderLookupDrawerProps = {
   open: boolean;
   onClose: () => void;
+  /**
+   * Optional initial phone (prefill). When provided and drawer opens,
+   * we will prefill the input and can optionally auto-run lookup.
+   */
+  initialPhone?: string;
+  /** Auto run lookup once after opening if initialPhone is present. */
+  autoLookup?: boolean;
 };
 
-export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurantsOrderLookupDrawerProps) {
+export function AllRestaurantsOrderLookupDrawer({
+  open,
+  onClose,
+  initialPhone,
+  autoLookup = false,
+}: AllRestaurantsOrderLookupDrawerProps) {
   const [phoneInput, setPhoneInput] = useState("");
   const [lookupPhone, setLookupPhone] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -241,6 +253,42 @@ export function AllRestaurantsOrderLookupDrawer({ open, onClose }: AllRestaurant
       resetDrawerState();
     }
   }, [open, resetDrawerState]);
+
+  const didAutoLookupRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) {
+      didAutoLookupRef.current = false;
+      return;
+    }
+    const phone = initialPhone?.trim() ?? "";
+    if (!phone) return;
+
+    setPhoneInput(phone);
+    if (!autoLookup) return;
+    if (didAutoLookupRef.current) return;
+    didAutoLookupRef.current = true;
+
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await getCustomerActiveOrdersAllRestaurants(phone);
+        setAllOrders(data);
+        setLookupPhone(phone);
+        setActiveTabKey(0);
+      } catch (err: unknown) {
+        const msg =
+          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          "Không thể tải danh sách đơn.";
+        setError(msg);
+        setAllOrders([]);
+        setLookupPhone(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [open, initialPhone, autoLookup]);
 
   useEffect(() => {
     if (!open) return;

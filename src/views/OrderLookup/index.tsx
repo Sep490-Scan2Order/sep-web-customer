@@ -248,7 +248,8 @@ export default function OrderLookupView() {
   const searchParams = useSearchParams();
   const restaurantId = searchParams.get("restaurantId") ?? "";
   const restaurantSlug = searchParams.get("restaurantSlug") ?? "";
-  const phoneNumber = searchParams.get("phoneNumber") ?? "";
+  const phoneNumberFromQuery = searchParams.get("phoneNumber") ?? "";
+  const [resolvedPhoneNumber, setResolvedPhoneNumber] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -308,17 +309,39 @@ export default function OrderLookupView() {
       : "/";
 
   useEffect(() => {
+    const fromQuery = phoneNumberFromQuery.trim();
+    if (fromQuery) {
+      setResolvedPhoneNumber(fromQuery);
+      return;
+    }
+    if (!restaurantId) {
+      setResolvedPhoneNumber("");
+      return;
+    }
+    try {
+      const key = `s2o_lookup_phone_${restaurantId}`;
+      const saved = window.sessionStorage.getItem(key)?.trim() ?? "";
+      setResolvedPhoneNumber(saved);
+    } catch {
+      setResolvedPhoneNumber("");
+    }
+  }, [phoneNumberFromQuery, restaurantId]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      if (!restaurantId || !phoneNumber) {
+      if (!restaurantId || !resolvedPhoneNumber) {
         setOrders([]);
         return;
       }
       setLoading(true);
       setError(null);
       try {
-        const data = await getCustomerActiveOrders({ restaurantId, phoneNumber });
+        const data = await getCustomerActiveOrders({
+          restaurantId,
+          phoneNumber: resolvedPhoneNumber,
+        });
         if (!cancelled) {
           setOrders(data);
         }
@@ -338,17 +361,20 @@ export default function OrderLookupView() {
     return () => {
       cancelled = true;
     };
-  }, [restaurantId, phoneNumber]);
+  }, [restaurantId, resolvedPhoneNumber]);
 
   // Trang tra cứu: làm mới định kỳ để bắt cập nhật trạng thái đơn
   useEffect(() => {
-    if (!restaurantId || !phoneNumber) return;
+    if (!restaurantId || !resolvedPhoneNumber) return;
 
     let cancelled = false;
 
     async function poll() {
       try {
-        const data = await getCustomerActiveOrders({ restaurantId, phoneNumber });
+        const data = await getCustomerActiveOrders({
+          restaurantId,
+          phoneNumber: resolvedPhoneNumber,
+        });
         if (!cancelled) setOrders(data);
       } catch {
         // bỏ qua lỗi polling để không làm UI nhảy liên tục
@@ -360,7 +386,7 @@ export default function OrderLookupView() {
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [restaurantId, phoneNumber]);
+  }, [restaurantId, resolvedPhoneNumber]);
 
   useEffect(() => {
     let stopped = false;
@@ -466,7 +492,7 @@ export default function OrderLookupView() {
             <div>
               <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Đơn hàng của bạn</h1>
               <p className="mt-1 text-sm text-slate-600">
-                SĐT <span className="font-semibold">{phoneNumber || "—"}</span>
+                SĐT <span className="font-semibold">{resolvedPhoneNumber || "—"}</span>
               </p>
             </div>
             <Link
@@ -542,7 +568,7 @@ export default function OrderLookupView() {
               </div>
             </div>
 
-            {!restaurantId || !phoneNumber ? (
+            {!restaurantId || !resolvedPhoneNumber ? (
               <p className="text-sm text-slate-600">
                 Thiếu thông tin tra cứu. Vui lòng quay lại trang nhà hàng và nhập SĐT.
               </p>

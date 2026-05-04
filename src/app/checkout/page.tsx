@@ -407,6 +407,28 @@ function CheckoutContent() {
     : "/";
   const isLoading = step.kind === "loading";
 
+  const goToOrderLookup = useCallback(
+    (phoneNumber: string) => {
+      const rid = restaurantIdParam?.trim();
+      const rslug = restaurantSlug?.trim();
+      const phone = phoneNumber.trim();
+
+      if (rid && phone) {
+        try {
+          window.sessionStorage.setItem(`s2o_lookup_phone_${rid}`, phone);
+        } catch {
+          /* ignore */
+        }
+      }
+
+      const params = new URLSearchParams();
+      if (rid) params.set("restaurantId", rid);
+      if (rslug) params.set("restaurantSlug", rslug);
+      router.push(`/orders/lookup?${params.toString()}`);
+    },
+    [restaurantIdParam, restaurantSlug, router],
+  );
+
   /**
    * Gọi API update-item với newQuantity tuyệt đối.
    * Sau khi thành công luôn cập nhật toàn bộ cart từ response (backend sync giá/KM/tồn kho).
@@ -676,6 +698,14 @@ function CheckoutContent() {
             >
               Quay về menu
             </button>
+
+            <button
+              type="button"
+              onClick={() => goToOrderLookup(r.phone)}
+              className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]"
+            >
+              Tra cứu hóa đơn
+            </button>
           </div>
         </div>
       );
@@ -821,6 +851,14 @@ function CheckoutContent() {
               className="mt-2 w-full rounded-2xl bg-orange-500 py-4 text-base font-extrabold text-white shadow-md transition hover:bg-orange-600 active:scale-[0.98]"
             >
               Quay về menu
+            </button>
+
+            <button
+              type="button"
+              onClick={() => goToOrderLookup(step.phone)}
+              className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]"
+            >
+              Tra cứu hóa đơn
             </button>
           </div>
         </div>

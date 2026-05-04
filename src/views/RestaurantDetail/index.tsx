@@ -460,10 +460,15 @@ export default function RestaurantDetailView({
                   return;
                 }
                 setShowOrderLookup(false);
+                try {
+                  window.sessionStorage.setItem(`s2o_lookup_phone_${String(r.id)}`, phone);
+                } catch {
+                  /* ignore */
+                }
                 router.push(
                   `/orders/lookup?restaurantId=${encodeURIComponent(String(r.id))}&restaurantSlug=${encodeURIComponent(
                     r.slug
-                  )}&phoneNumber=${encodeURIComponent(phone)}`
+                  )}`
                 );
               }}
               className="mt-3 w-full rounded-lg bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-600"

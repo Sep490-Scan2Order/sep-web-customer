@@ -615,6 +615,21 @@ function CheckoutPreorderContent() {
     return ROUTES.HOME;
   }, [restaurantSlug, restaurantIdParam]);
 
+  const goToHomeOrderLookup = useCallback(
+    (phoneNumber: string) => {
+      const phone = phoneNumber.trim();
+      if (phone) {
+        try {
+          window.sessionStorage.setItem("s2o_lookup_phone_all", phone);
+        } catch {
+          /* ignore */
+        }
+      }
+      router.push(`${ROUTES.HOME}?orderLookup=1`);
+    },
+    [router],
+  );
+
   const contentColumnClass =
     "mx-auto w-full max-w-lg sm:max-w-xl md:max-w-2xl px-4 sm:px-6";
 
@@ -1103,6 +1118,14 @@ function CheckoutPreorderContent() {
                 className="mt-2 w-full rounded-2xl bg-emerald-500 py-4 text-base font-extrabold text-white shadow-md active:scale-[0.99]"
               >
                 Quay về menu
+              </button>
+
+              <button
+                type="button"
+                onClick={() => goToHomeOrderLookup(lookupPhone)}
+                className="w-full rounded-2xl border border-slate-200 bg-white py-4 text-base font-extrabold text-slate-900 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]"
+              >
+                Tra cứu hóa đơn
               </button>
             </div>
           </div>
