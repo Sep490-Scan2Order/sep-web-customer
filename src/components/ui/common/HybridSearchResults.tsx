@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Star, MapPin, Utensils } from "lucide-react";
-import { hybridSearch, type HybridSearchParams } from "@/services/hybridSearchService";
+import {
+  hybridSearch,
+  type HybridSearchParams,
+} from "@/services/hybridSearchService";
 import type { HybridSearchResult, HybridSearchDish } from "@/types";
 
 const DEBOUNCE_DELAY_MS = 500;
@@ -18,7 +21,10 @@ export function HybridSearchResults({ keyword }: HybridSearchResultsProps) {
   const [results, setResults] = useState<HybridSearchResult[]>([]);
   const [status, setStatus] = useState<Status>("loading");
   const [error, setError] = useState<string | null>(null);
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [coords, setCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Get user coordinates
@@ -48,7 +54,7 @@ export function HybridSearchResults({ keyword }: HybridSearchResultsProps) {
           setCoords(null);
         }
       },
-      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
     );
 
     return () => {
@@ -91,7 +97,8 @@ export function HybridSearchResults({ keyword }: HybridSearchResultsProps) {
         }
       } catch (err: unknown) {
         const msg =
-          (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          (err as { response?: { data?: { message?: string } } })?.response
+            ?.data?.message ||
           (err as { message?: string })?.message ||
           "Không tải được kết quả tìm kiếm.";
         setError(msg);
@@ -110,7 +117,11 @@ export function HybridSearchResults({ keyword }: HybridSearchResultsProps) {
     return (
       <div className="space-y-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-48 animate-pulse rounded-2xl bg-slate-200" aria-hidden />
+          <div
+            key={i}
+            className="h-48 animate-pulse rounded-2xl bg-slate-200"
+            aria-hidden
+          />
         ))}
       </div>
     );
@@ -129,7 +140,9 @@ export function HybridSearchResults({ keyword }: HybridSearchResultsProps) {
     return (
       <div className="rounded-xl bg-slate-100 p-8 text-center">
         <Utensils className="mx-auto mb-4 h-12 w-12 text-slate-400" />
-        <p className="text-lg font-medium text-slate-600">Không tìm thấy kết quả</p>
+        <p className="text-lg font-medium text-slate-600">
+          Không tìm thấy kết quả
+        </p>
         <p className="mt-2 text-sm text-slate-500">
           Hãy thử tìm kiếm với từ khóa khác
         </p>
@@ -158,7 +171,9 @@ function RestaurantSearchResult({ result }: RestaurantSearchResultProps) {
         <div className="h-40 overflow-hidden bg-gradient-to-b from-slate-200 to-slate-100">
           {result.backgroundImageUrl && (
             <img
-              src={result.backgroundImageUrl}
+              src={
+                "https://i.pinimg.com/736x/59/f3/2b/59f32b1825a6113a7ebe92057c2338d7.jpg"
+              }
               alt={result.restaurantName}
               className="h-full w-full object-cover"
             />
@@ -168,7 +183,10 @@ function RestaurantSearchResult({ result }: RestaurantSearchResultProps) {
         <div className="absolute inset-x-0 bottom-0 flex items-end gap-4 bg-gradient-to-t from-black/40 to-transparent px-4 pb-4">
           <div className="h-20 w-20 flex-shrink-0 overflow-hidden rounded-xl border-2 border-white shadow-lg">
             <img
-              src={result.imageUrl || "/placeholder-restaurant.jpg"}
+              src={
+                result.imageUrl ||
+                "https://ysafyqmiutvhohvsthnt.supabase.co/storage/v1/object/public/logo/logo_default.png"
+              }
               alt={result.restaurantName}
               className="h-full w-full object-cover"
             />
@@ -254,7 +272,9 @@ function DishItem({ dish }: DishItemProps) {
       )}
       <div className="flex-1">
         <p className="text-sm font-medium text-slate-900">{dish.dishName}</p>
-        <p className="line-clamp-1 text-xs text-slate-500">{dish.description}</p>
+        <p className="line-clamp-1 text-xs text-slate-500">
+          {dish.description}
+        </p>
         <p className="mt-1 text-sm font-semibold text-emerald-600">
           {dish.price.toLocaleString("vi-VN")} ₫
         </p>
