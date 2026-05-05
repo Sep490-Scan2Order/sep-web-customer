@@ -1131,12 +1131,12 @@ function CheckoutPreorderContent() {
           </div>
         ) : (
           <div className={`${contentColumnClass} space-y-3 pb-8 pt-4`}>
-            <div className="flex flex-col items-center gap-3 rounded-2xl bg-blue-500 px-4 pb-8 pt-8 text-white shadow-md">
+            <div className="flex flex-col items-center gap-3 rounded-2xl bg-amber-500 px-4 pb-8 pt-8 text-white shadow-md">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
                 <QrCode className="h-9 w-9 text-white" />
               </div>
               <p className="text-2xl font-extrabold">Quét mã để thanh toán</p>
-              <p className="text-sm text-blue-100">
+              <p className="text-sm text-amber-100">
                 {orderResult.restaurantName}
               </p>
             </div>
@@ -1158,7 +1158,7 @@ function CheckoutPreorderContent() {
               <SectionCard className="border border-slate-100 py-4 shadow-sm">
                 <div className="flex items-center justify-between py-2">
                   <span className="text-sm text-slate-500">Số tiền</span>
-                  <span className="text-base font-extrabold text-blue-600">
+                  <span className="text-base font-extrabold text-amber-600">
                     {formatVND(orderResult.totalAmount)}
                   </span>
                 </div>
@@ -1177,8 +1177,8 @@ function CheckoutPreorderContent() {
                 </div>
                 <div className="flex items-center justify-between py-2">
                   <span className="text-sm text-slate-500">Trạng thái</span>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-700">
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
                     Chờ xác nhận chuyển khoản
                   </span>
                 </div>

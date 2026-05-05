@@ -879,12 +879,12 @@ function CheckoutContent() {
 
     return (
       <div className="flex min-h-screen flex-col bg-slate-50">
-        <div className="flex flex-col items-center gap-3 bg-blue-500 px-4 pb-10 pt-12 text-white">
+        <div className="flex flex-col items-center gap-3 bg-amber-500 px-4 pb-10 pt-12 text-white">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-white/20">
             <QrCode className="h-9 w-9 text-white" />
           </div>
           <p className="text-2xl font-extrabold">Quét mã để thanh toán</p>
-          <p className="text-sm text-blue-100">{r.restaurantName}</p>
+          <p className="text-sm text-amber-100">{r.restaurantName}</p>
         </div>
 
         <div className="-mt-4 flex flex-col gap-3 px-4 pb-8">
@@ -904,7 +904,7 @@ function CheckoutContent() {
           <SectionCard className="py-4">
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-500">Số tiền</span>
-              <span className="text-base font-extrabold text-blue-600">
+              <span className="text-base font-extrabold text-amber-600">
                 {formatVND(r.totalAmount)}
               </span>
             </div>
@@ -917,8 +917,8 @@ function CheckoutContent() {
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-slate-500">Trạng thái</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-bold text-blue-700">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
                 Chờ xác nhận chuyển khoản
               </span>
             </div>

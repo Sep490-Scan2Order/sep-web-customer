@@ -120,8 +120,8 @@ export function PendingPaymentBanner({ restaurantId, restaurantSlug }: PendingPa
         <div
           className={`relative flex items-center gap-3 rounded-2xl border px-4 py-3 shadow-2xl text-white transition-colors ${
             isWarning
-              ? "border-orange-300 bg-orange-500"
-              : "border-blue-200 bg-blue-600"
+              ? "border-rose-300 bg-rose-500"
+              : "border-amber-200 bg-amber-500"
           }`}
         >
           {/* Icon */}
@@ -140,7 +140,7 @@ export function PendingPaymentBanner({ restaurantId, restaurantSlug }: PendingPa
                 ? "⚠ Sắp hết hạn! Quét QR ngay!"
                 : `Đơn chưa thanh toán · ${formattedTotal}`}
             </p>
-            <p className={`text-xs mt-0.5 ${isWarning ? "text-orange-100" : "text-blue-100"}`}>
+            <p className={`text-xs mt-0.5 ${isWarning ? "text-rose-100" : "text-amber-100"}`}>
               {session.restaurantName} · Còn{" "}
               <span className={`font-bold ${isWarning ? "text-white animate-pulse" : "text-white"}`}>
                 {formatCountdown(safeRemaining)}
@@ -155,8 +155,8 @@ export function PendingPaymentBanner({ restaurantId, restaurantSlug }: PendingPa
             onClick={handleResume}
             className={`shrink-0 rounded-xl px-3 py-1.5 text-xs font-extrabold shadow-sm active:scale-95 ${
               isWarning
-                ? "bg-white text-orange-600 hover:bg-orange-50"
-                : "bg-white text-blue-700 hover:bg-blue-50"
+                ? "bg-white text-rose-600 hover:bg-rose-50"
+                : "bg-white text-amber-700 hover:bg-amber-50"
             }`}
           >
             Quét QR
