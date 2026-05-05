@@ -49,6 +49,7 @@ import { getRestaurantGroupedMenu } from "@/services/menuRestaurantTemplateServi
 import type { RestaurantMenuData } from "@/types";
 import { toast } from "react-toastify";
 import { useOrderStatusSignalR } from "@/hooks/useOrderStatusSignalR";
+import { useMenuSignalR } from "@/hooks/useMenuSignalR";
 
 /* ─── Helpers ─── */
 function formatVND(v: number) {
@@ -283,31 +284,35 @@ function CheckoutContent() {
     };
   }, [cart, restaurantIdParam]);
 
-  const promotionFetchedRef = useRef(false);
+  // ─── Fetch promotions ────────────────────────────────────────────────────────
+  // Stable callback so it can be called on initial mount AND by SignalR.
+  const refetchPromotions = useCallback(async () => {
+    if (!cart || !restaurantIdParam) return;
+    setLoadingPromotions(true);
+    try {
+      const res = await getAvailablePromotions({
+        restaurantId: Number(restaurantIdParam),
+        orderTotal: cart.totalAmount,
+      });
+      setPromotions(res);
+      const best = res.find((p) => p.isRecommended);
+      if (best) setSelectedPromotionId(best.id);
+    } catch (err) {
+      console.error("Failed to load promotions", err);
+    } finally {
+      setLoadingPromotions(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cart?.cartId, restaurantIdParam]);
 
+  // Initial load — run once when cart is first available
+  const promotionFetchedRef = useRef(false);
   useEffect(() => {
     if (!cart || !restaurantIdParam) return;
-    // Chỉ fetch 1 lần sau khi cart load xong lần đầu
     if (promotionFetchedRef.current) return;
     promotionFetchedRef.current = true;
-    const fetchPromotions = async () => {
-      setLoadingPromotions(true);
-      try {
-        const res = await getAvailablePromotions({
-          restaurantId: Number(restaurantIdParam),
-          orderTotal: cart.totalAmount,
-        });
-        setPromotions(res);
-        const best = res.find((p) => p.isRecommended);
-        if (best) setSelectedPromotionId(best.id);
-      } catch (err) {
-        console.error("Failed to load promotions", err);
-      } finally {
-        setLoadingPromotions(false);
-      }
-    };
-    fetchPromotions();
-  });
+    refetchPromotions();
+  }, [cart, restaurantIdParam, refetchPromotions]);
 
   const fetchRecommendations = async () => {
     if (!cartId) return;
@@ -400,6 +405,13 @@ function CheckoutContent() {
     handleSignalRStatus,
     fallbackPoll,
     10_000,
+  );
+
+  // 🔌 SignalR: lắng nghe MenuChanged để refetch promotion khi có KM mới
+  const menuSignalRId = restaurantIdParam ? Number(restaurantIdParam) : null;
+  useMenuSignalR(
+    Number.isFinite(menuSignalRId) && menuSignalRId! > 0 ? menuSignalRId : null,
+    refetchPromotions,
   );
 
   const backHref = restaurantSlug
