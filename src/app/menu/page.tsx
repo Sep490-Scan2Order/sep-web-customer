@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
@@ -26,6 +26,7 @@ import {
   type CartResponse,
 } from "@/services/orderCustomerService";
 import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
+import { useMenuSignalR } from "@/hooks/useMenuSignalR";
 
 type DishDto = {
   dishId: number;
@@ -563,39 +564,37 @@ function MenuContent() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastIdRef = { current: 0 };
 
-  useEffect(() => {
-    if (!restaurantParam) {
-      setState({
-        status: "error",
-        error: "Thiếu restaurant slug trong URL.",
-      });
-      return;
-    }
+  // ─── Fetch menu data ────────────────────────────────────────────────────────
+  // Extracted to a stable useCallback so it can be called both on initial
+  // mount AND when SignalR fires a MenuChanged event.
+  const refetchMenu = useCallback(
+    async (resolvedRestaurantId?: number) => {
+      // Use the already-resolved ID if available, otherwise resolve from slug
+      let rid = resolvedRestaurantId ?? restaurantId;
 
-    let cancelled = false;
-
-    async function load() {
       setState({ status: "loading" });
       try {
-        const infoRes = await fetch(
-          `${API_BASE_URL}${API.RESTAURANT.GET_BY_SLUG(restaurantParam)}`,
-        );
-        if (!infoRes.ok) {
-          throw new Error(
-            `Không lấy được thông tin nhà hàng (${infoRes.status}).`,
+        if (!rid) {
+          // First load: resolve restaurant ID from slug
+          const infoRes = await fetch(
+            `${API_BASE_URL}${API.RESTAURANT.GET_BY_SLUG(restaurantParam)}`,
           );
-        }
-        const infoJson = await infoRes.json();
-        const restaurantId: number | undefined = infoJson?.data?.id;
-        if (!restaurantId) {
-          throw new Error("Dữ liệu nhà hàng không hợp lệ (không có id).");
-        }
-        if (!cancelled) {
-          setRestaurantId(restaurantId);
+          if (!infoRes.ok) {
+            throw new Error(
+              `Không lấy được thông tin nhà hàng (${infoRes.status}).`,
+            );
+          }
+          const infoJson = await infoRes.json();
+          const fetchedId: number | undefined = infoJson?.data?.id;
+          if (!fetchedId) {
+            throw new Error("Dữ liệu nhà hàng không hợp lệ (không có id).");
+          }
+          rid = fetchedId;
+          setRestaurantId(rid);
 
           if (typeof window !== "undefined") {
             try {
-              const parsed = loadCartCache(restaurantId);
+              const parsed = loadCartCache(rid);
               if (parsed) {
                 setCartData(parsed);
                 const qs: Record<number, number> = {};
@@ -611,7 +610,7 @@ function MenuContent() {
         }
 
         const res = await fetch(
-          `${API_BASE_URL}/MenuTemplate/restaurant/${restaurantId}/template`,
+          `${API_BASE_URL}/MenuTemplate/restaurant/${rid}/template`,
           {
             cache: "no-store",
             headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
@@ -638,7 +637,7 @@ function MenuContent() {
           );
 
           console.groupCollapsed(
-            `[Menu] restaurantId=${restaurantId} categories=${data.length} dishes=${allDishesFromResponse.length}`,
+            `[Menu] restaurantId=${rid} categories=${data.length} dishes=${allDishesFromResponse.length}`,
           );
           console.log("[Menu] raw response", raw);
           console.log("[Menu] combo dishes", comboDishes);
@@ -658,35 +657,45 @@ function MenuContent() {
         const layoutConfigJson = raw?.data?.layoutConfigJson ?? null;
         const rawThemeColor = raw?.data?.themeColor ?? null;
         const rawFontFamily = raw?.data?.fontFamily ?? null;
-        if (!cancelled) {
-          setState({
-            status: "success",
-            data,
-            layoutConfigJson,
-            themeColor:
-              typeof rawThemeColor === "string" ? rawThemeColor : null,
-            fontFamily:
-              typeof rawFontFamily === "string" ? rawFontFamily : null,
-          });
-        }
+        setState({
+          status: "success",
+          data,
+          layoutConfigJson,
+          themeColor:
+            typeof rawThemeColor === "string" ? rawThemeColor : null,
+          fontFamily:
+            typeof rawFontFamily === "string" ? rawFontFamily : null,
+        });
       } catch (e: unknown) {
-        if (!cancelled) {
-          setState({
-            status: "error",
-            error:
-              (e as Error)?.message ||
-              "Không thể tải menu. Vui lòng thử lại sau ít phút.",
-          });
-        }
+        setState({
+          status: "error",
+          error:
+            (e as Error)?.message ||
+            "Không thể tải menu. Vui lòng thử lại sau ít phút.",
+        });
       }
+    },
+    // restaurantId intentionally included so SignalR refetch uses latest value
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [restaurantParam, restaurantId],
+  );
+
+  // ─── Initial load ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!restaurantParam) {
+      setState({
+        status: "error",
+        error: "Thiếu restaurant slug trong URL.",
+      });
+      return;
     }
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
+    refetchMenu();
+  // refetchMenu identity only changes when restaurantParam changes (first load)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantParam]);
+
+  // ─── SignalR: listen for real-time menu updates ───────────────────────────────
+  useMenuSignalR(restaurantId, refetchMenu);
 
   const categories = useMemo(
     () => (state.status === "success" ? state.data : []),
