@@ -928,7 +928,7 @@ function CheckoutPreorderContent() {
                 {cart && (
                   <>
                     <SectionCard className="mt-3 py-3">
-                      <label className="block">
+                      <label className="flex flex-col gap-2">
                         <span className="text-sm font-semibold text-slate-700">
                           Số điện thoại
                         </span>
@@ -940,10 +940,10 @@ function CheckoutPreorderContent() {
                           }}
                           inputMode="tel"
                           placeholder="VD: 0901234567"
-                          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                          className="block h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
                         />
                         {phoneError && (
-                          <p className="mt-1.5 text-xs font-semibold text-rose-600">
+                          <p className="mt-1 text-xs font-semibold text-rose-600">
                             {phoneError}
                           </p>
                         )}
@@ -951,8 +951,8 @@ function CheckoutPreorderContent() {
                     </SectionCard>
 
                     <SectionCard className="mt-3 py-3">
-                      <label className="block">
-                        <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                      <label className="flex flex-col gap-2">
+                        <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
                           <CalendarClock className="h-4 w-4 text-emerald-700" />
                           Thời gian nhận đơn
                         </span>
@@ -976,10 +976,10 @@ function CheckoutPreorderContent() {
                             }
                             setPickupError(null);
                           }}
-                          className="mt-2 h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 invalid:border-rose-300 invalid:bg-slate-50 invalid:text-slate-400"
+                          className="block h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-800 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 invalid:border-rose-300 invalid:bg-slate-50 invalid:text-slate-400"
                         />
                         {pickupError && (
-                          <p className="mt-1.5 text-xs font-semibold text-rose-600">
+                          <p className="mt-1 text-xs font-semibold text-rose-600">
                             {pickupError}
                           </p>
                         )}

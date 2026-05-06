@@ -12,6 +12,7 @@ import {
   Tags,
   X,
 } from "lucide-react";
+import { toast } from "react-toastify";
 import { MainLayout } from "@/components/ui/common";
 import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
 import type { RestaurantMenuData, RestaurantSlugResponseData } from "@/types";
@@ -235,10 +236,16 @@ export default function RestaurantInfoView({
 
     try {
       let lastCart: CartResponse | null = null;
+      const sentMap: Record<number, { dishName: string; qty: number }> = {};
 
       for (const [dishId, quantity] of Object.entries(selectedDishes)) {
         const parsedDishId = Number(dishId);
         if (!Number.isFinite(parsedDishId) || quantity <= 0) continue;
+
+        const dish = allDishes.find((d) => d.id === dishId);
+        if (!dish) continue;
+
+        sentMap[parsedDishId] = { dishName: dish.name, qty: quantity };
 
         const result = await addToCart({
           restaurantId: Number(r.id),
@@ -252,6 +259,35 @@ export default function RestaurantInfoView({
       }
 
       if (lastCart) {
+        const warnings: { dishName: string; sentQty: number; actualQty: number }[] = [];
+        for (const [dishIdStr, info] of Object.entries(sentMap)) {
+          const dishIdNum = parseInt(dishIdStr, 10);
+          const responseItem = lastCart.items.find((i) => i.dishId === dishIdNum);
+          if (!responseItem) {
+            warnings.push({ dishName: info.dishName, sentQty: info.qty, actualQty: 0 });
+          } else if (responseItem.quantity < info.qty) {
+            warnings.push({
+              dishName: info.dishName,
+              sentQty: info.qty,
+              actualQty: responseItem.quantity,
+            });
+          }
+        }
+
+        for (const w of warnings) {
+          if (w.actualQty === 0) {
+            toast.warn(`"${w.dishName}" đã hết hàng, bị xóa khỏi giỏ.`);
+          } else {
+            toast.warn(
+              `"${w.dishName}" chỉ còn ${w.actualQty} (bạn chọn ${w.sentQty}), đã điều chỉnh lại.`
+            );
+          }
+        }
+
+        if (warnings.length === 0) {
+          toast.success(`Đã thêm ${Object.keys(sentMap).length} món vào giỏ hàng!`);
+        }
+
         setCartData(lastCart);
         setSelectedDishes({});
         if (typeof window !== "undefined") {
