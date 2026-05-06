@@ -11,8 +11,9 @@ import {
   ShoppingCart,
   Tags,
   X,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
-import { toast } from "react-toastify";
 import { MainLayout } from "@/components/ui/common";
 import { PendingPaymentBanner } from "@/components/ui/common/PendingPaymentBanner";
 import type { RestaurantMenuData, RestaurantSlugResponseData } from "@/types";
@@ -26,6 +27,55 @@ import {
   saveCartCache,
   type CartResponse,
 } from "@/services/orderCustomerService";
+
+type ToastItem = {
+  id: number;
+  type: "success" | "warning";
+  message: string;
+};
+
+function ToastContainer({
+  toasts,
+  onRemove,
+}: {
+  toasts: ToastItem[];
+  onRemove: (id: number) => void;
+}) {
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed right-3 top-16 z-[60] flex flex-col gap-2 sm:right-4 sm:top-20">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 shadow-lg backdrop-blur-sm transition-all sm:px-4 sm:py-3 ${
+            t.type === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-amber-200 bg-amber-50 text-amber-800"
+          }`}
+          style={{ minWidth: "220px", maxWidth: "320px" }}
+        >
+          <span className="mt-0.5 shrink-0">
+            {t.type === "success" ? (
+              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+            ) : (
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            )}
+          </span>
+          <p className="flex-1 text-xs font-semibold leading-snug sm:text-sm">
+            {t.message}
+          </p>
+          <button
+            type="button"
+            onClick={() => onRemove(t.id)}
+            className="shrink-0 opacity-50 hover:opacity-100"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface RestaurantInfoViewProps {
   restaurant: RestaurantSlugResponseData;
@@ -56,6 +106,20 @@ function buildDirectionsUrl(r: RestaurantSlugResponseData): string {
 export default function RestaurantInfoView({
   restaurant: r,
 }: RestaurantInfoViewProps) {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastIdRef = { current: 0 };
+
+  function pushToast(type: ToastItem["type"], message: string) {
+    const id = ++toastIdRef.current;
+    setToasts((prev) => [...prev, { id, type, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }
+
+  function removeToast(id: number) {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }
   const [infoOpen, setInfoOpen] = useState(false);
   const [coverSrc, setCoverSrc] = useState(
     r.image || FALLBACK_RESTAURANT_IMAGE,
@@ -276,16 +340,17 @@ export default function RestaurantInfoView({
 
         for (const w of warnings) {
           if (w.actualQty === 0) {
-            toast.warn(`"${w.dishName}" đã hết hàng, bị xóa khỏi giỏ.`);
+            pushToast("warning", `"${w.dishName}" đã hết hàng, bị xóa khỏi giỏ.`);
           } else {
-            toast.warn(
+            pushToast(
+              "warning",
               `"${w.dishName}" chỉ còn ${w.actualQty} (bạn chọn ${w.sentQty}), đã điều chỉnh lại.`
             );
           }
         }
 
         if (warnings.length === 0) {
-          toast.success(`Đã thêm ${Object.keys(sentMap).length} món vào giỏ hàng!`);
+          pushToast("success", `Đã thêm ${Object.keys(sentMap).length} món vào giỏ hàng!`);
         }
 
         setCartData(lastCart);
@@ -749,6 +814,7 @@ export default function RestaurantInfoView({
           </>
         )}
       </div>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
       <PendingPaymentBanner restaurantId={r.id} restaurantSlug={r.slug} />
     </MainLayout>
   );
