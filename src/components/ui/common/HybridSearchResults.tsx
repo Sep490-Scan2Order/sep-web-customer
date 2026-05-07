@@ -212,10 +212,6 @@ function RestaurantSearchResult({ result }: RestaurantSearchResultProps) {
               <span>~ {result.gpsDistanceKm.toFixed(2)} km</span>
             </div>
           )}
-          <div className="flex items-center gap-1 text-slate-600">
-            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span>{(result.finalScore * 100).toFixed(0)}%</span>
-          </div>
         </div>
 
         {result.description && (
