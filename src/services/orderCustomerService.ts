@@ -283,6 +283,8 @@ export async function updateCartItem(
 export type CheckoutRequest = {
   cartId: string;
   phone: string;
+  isPreOrder?: boolean | null;
+  requestedPickupAt?: string | null;
   appliedPromotionId?: number | null;
 };
 

@@ -529,6 +529,7 @@ function CheckoutPreorderContent() {
       const result = await checkoutBankTransfer({
         cartId: cart.cartId,
         phone: trimmed,
+        requestedPickupAt: new Date(pickupAt).toISOString(),
         appliedPromotionId: selectedPromotionId,
       });
       setLookupPhone(trimmed);
