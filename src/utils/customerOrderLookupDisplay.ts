@@ -122,9 +122,8 @@ export function inferOrderLevelDiscount(
 
   const sumOrigSub = (totals as number[]).reduce((s, v) => s + v, 0);
   const diff = sumOrigSub - origFinal;
-  // Làm tròn nghìn đồng, chỉ trả về nếu dương và hợp lý (< tổng đơn)
-  const rounded = Math.round(diff / 1000) * 1000;
-  return rounded > 0 && rounded < sumOrigSub ? rounded : 0;
+  // Chỉ trả về nếu dương và hợp lý (< tổng đơn)
+  return diff > 0 && diff < sumOrigSub ? diff : 0;
 }
 
 /**

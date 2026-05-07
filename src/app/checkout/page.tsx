@@ -955,7 +955,6 @@ function CheckoutContent() {
     0,
     (cart?.totalAmount ?? 0) - discountAmount,
   );
-  const finalAmountRounded = Math.round(finalAmountCalculated / 1000) * 1000;
 
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -1348,7 +1347,7 @@ function CheckoutContent() {
                 </span>
               )}
               <span className="font-extrabold text-orange-600 text-lg leading-none">
-                {formatVND(finalAmountRounded)}
+                {formatVND(finalAmountCalculated)}
               </span>
             </div>
           </div>
